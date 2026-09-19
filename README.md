@@ -1,4 +1,32 @@
 <!-- markdownlint-disable MD033 MD041 -->
+
+> **本仓库是一个 fork。** 这是 [MaaXYZ/MFAAvalonia](https://github.com/MaaXYZ/MFAAvalonia)（MaaFramework 的通用桌面界面）的定制分支，专为《无期迷途》自动化项目 **MBCCtools** 而改。下方保留上游原始说明。
+
+## 本 fork 用途
+
+在 MFAAvalonia 里新增了一个独立的侧栏页面「**抽卡记录**」，用来查看 MBCCtools 采集到的游戏抽卡（招募）历史。
+
+- **数据来源**：读取项目根目录下 `record/*.jsonl`（由 MBCCtools 的「抽卡记录」任务 + AgentServer 的 `GachaRecordPage` 识别器采集落档）。每行含 `时间 / 卡池名 / 稀有度(狂·危·普) / 角色名`。
+- **页面形态**：左侧卡池导航栏（各池抽数、点击筛选）+ 三个页签：
+  - **概览**：稀有度占比条、总抽数 / 平均出货抽数 / 距上次狂·危 等指标、角色获得次数卡片墙（狂级角色加载 `resource/base/image/狂级头像/<名>.png` 真实头像）。
+  - **表格**：完整记录表（按稀有度整行染色、分页、排序、筛选、搜索）。
+  - **统计**：分卡池汇总表。
+- **改动范围**：新增 `ViewModels/Pages/GachaRecordViewModel.cs`、`Views/Pages/GachaRecordView.axaml(.cs)`；小改 4 个上游文件（`App.axaml`、`App.axaml.cs`、`Helper/Instances.cs`、`Views/Mobile/RootViewContent.axaml`）。
+
+## 构建与部署（本 fork）
+
+- 需要 **.NET 10 SDK**（`MFAAvalonia.csproj` 目标 `net10.0`）。
+- 编译产物：`dotnet publish MFAAvalonia.Desktop/MFAAvalonia.Desktop.csproj -c Release -r win-x64 --self-contained false -o publish`。
+- 部署：把产物覆盖进 **MBCCtools 项目根目录**（`MFAAvalonia.exe` 须与 `interface.json`、`record/` 同目录，页面才读得到数据）。覆盖前先关闭正在运行的 `MFAAvalonia.exe`。
+
+## 跟进上游
+
+- 远程：`origin` = 上游 `MaaXYZ/MFAAvalonia`（只 fetch）；定制改动在分支 `feature/gacha-record`。
+- 更新循环：`git fetch origin` → `git checkout feature/gacha-record` → `git merge origin/master`（冲突集中在上述 4 个文件，多为“双方都保留”）→ 重新 publish 部署。
+- ⚠ 每次跟进后核对 `MFAAvalonia.csproj` 的 `Maa.Framework.Runtimes` 版本，与 MBCCtools 侧 `pip install MaaFw==<对应版本>` 保持一致，否则抽卡记录的 Custom 节点会协议不匹配连不上。
+
+---
+
 <div align="center">
   <img alt="MFAAvalonia" src="./docs/images/mfa-logo_512x512.png" width="192" height="192" />
 
