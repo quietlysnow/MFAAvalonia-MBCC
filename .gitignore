@@ -28,3 +28,4 @@ build_output.txt
 /MFAAvalonia.Tests/
 /MFAAvalonia/AssemblyInfo.cs
 workflows/android/__pycache__/mfa_android_agent.cpython-312.pyc
+publish/
