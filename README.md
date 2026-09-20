@@ -8,7 +8,7 @@
 
 - **数据来源**：读取项目根目录下 `record/*.jsonl`（由 MBCCtools 的「抽卡记录」任务 + AgentServer 的 `GachaRecordPage` 识别器采集落档）。每行含 `时间 / 卡池名 / 稀有度(狂·危·普) / 角色名`。
 - **页面形态**：左侧卡池导航栏（各池抽数、点击筛选）+ 三个页签：
-  - **概览**：稀有度占比条、总抽数 / 平均出货抽数 / 距上次狂·危 等指标、角色获得次数卡片墙（狂级角色加载 `resource/base/image/狂级头像/<名>.png` 真实头像）。
+  - **概览**：稀有度占比条、总抽数 / 平均出货抽数 / 距上次狂·危 等指标、角色获得次数卡片墙（狂/危/普角色均加载 `resource/base/image/头像/<稀有度级>/<名>.png` 真实头像，缺图退回首字色块）。
   - **表格**：完整记录表（按稀有度整行染色、分页、排序、筛选、搜索）。
   - **统计**：分卡池汇总表。
 - **改动范围**：新增 `ViewModels/Pages/GachaRecordViewModel.cs`、`Views/Pages/GachaRecordView.axaml(.cs)`；小改 4 个上游文件（`App.axaml`、`App.axaml.cs`、`Helper/Instances.cs`、`Views/Mobile/RootViewContent.axaml`）。

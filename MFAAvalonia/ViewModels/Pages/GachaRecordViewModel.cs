@@ -40,6 +40,9 @@ public partial class GachaRecordViewModel : ViewModelBase
     // —— 统计页：分卡池汇总 ——
     public ObservableCollection<PoolStat> PoolStats { get; } = [];
 
+    // —— 概览页：狂级出金明细（每个狂是第几抽出金的，跨卡池全局）——
+    public ObservableCollection<GoldPull> GoldPulls { get; } = [];
+
     public ObservableCollection<string> SourceFilters { get; } = [];
     public string[] RarityFilters { get; } = [AllOption, .. RarityLevels];
     public string[] SortFields { get; } = ["采集顺序", "时间", "稀有度", "卡池", "角色名"];
@@ -120,6 +123,16 @@ public partial class GachaRecordViewModel : ViewModelBase
     [ObservableProperty]
     private string _avgPerKuangText = "—";
 
+    // 每档"抽到最多的角色"（统计页卡片副标题用）
+    [ObservableProperty]
+    private string _topKuangName = "—";
+
+    [ObservableProperty]
+    private string _topWeiName = "—";
+
+    [ObservableProperty]
+    private string _topPuName = "—";
+
     public string KuangPctText => Percent(KuangCount, DisplayCount);
     public string WeiPctText => Percent(WeiCount, DisplayCount);
     public string PuPctText => Percent(PuCount, DisplayCount);
@@ -189,6 +202,7 @@ public partial class GachaRecordViewModel : ViewModelBase
         SelectedPoolItem = Pools.FirstOrDefault(p => p.Name == SelectedPool) ?? Pools.FirstOrDefault();
         SelectedSource = SourceFilters.Contains(prevSource) ? prevSource : AllOption;
 
+        ComputeGoldStats();
         ApplyFilter();
     }
 
@@ -233,7 +247,8 @@ public partial class GachaRecordViewModel : ViewModelBase
 
         var time = TimeFix.Replace(cells[0], "$1 $2");
         var pool = cells.Count >= 2 ? cells[1] : string.Empty;
-        var name = ResolveName(cells, rarity);
+        var rawName = ResolveName(cells, rarity);
+        var name = NameFixes.GetValueOrDefault(rawName, rawName);
 
         int.TryParse(GetString(root, "index"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var index);
 
@@ -247,6 +262,16 @@ public partial class GachaRecordViewModel : ViewModelBase
             Index = index
         };
     }
+
+    /// <summary>
+    /// 采集端 OCR 把同一角色读成过两个字，不合并会让次数拆成两张卡、且按 wiki 文件名取头像取不到。
+    /// 左=已落档的错名，右=角色本名（与 resource/base/image/头像/ 下的文件名一致）。
+    /// </summary>
+    private static readonly Dictionary<string, string> NameFixes = new(StringComparer.Ordinal)
+    {
+        ["县"] = "昙",
+        ["卡茲安"] = "卡兹安",
+    };
 
     /// <summary>
     /// 从 cells[2..] 还原角色名：· 拆段拼接；漏名→空；尾部漏进的稀有度单字（等于本行档）丢弃。
@@ -383,8 +408,7 @@ public partial class GachaRecordViewModel : ViewModelBase
         TotalCount = _all.Count;
         PoolCount = filtered.Select(r => r.Pool).Distinct().Count();
         SourceCount = filtered.Select(r => r.Source).Distinct().Count();
-        AvgPerKuangText = KuangCount > 0 ? (DisplayCount / (double)KuangCount).ToString("F1") : "—";
-        ComputePity(filtered);
+        // 平均出货抽数(狂)/距上次狂·危 是跨卡池的全局计数，在 Load 里算，不随筛选变。
 
         OnPropertyChanged(nameof(KuangPctText));
         OnPropertyChanged(nameof(WeiPctText));
@@ -406,16 +430,20 @@ public partial class GachaRecordViewModel : ViewModelBase
                     Name = g.Key,
                     Count = g.Count(),
                     Rarity = rarity,
-                    Avatar = rarity == "狂" ? LoadAvatar(g.Key) : null
+                    Avatar = LoadAvatar(rarity, g.Key)
                 };
             })
-            .OrderByDescending(c => c.Count)
-            .ThenBy(c => c.RarityRank)
+            .OrderBy(c => c.RarityRank)
+            .ThenByDescending(c => c.Count)
             .ToList();
 
         CharacterStats.Clear();
         foreach (var c in chars)
             CharacterStats.Add(c);
+
+        TopKuangName = chars.FirstOrDefault(c => c.Rarity == "狂")?.Name ?? "—";
+        TopWeiName = chars.FirstOrDefault(c => c.Rarity == "危")?.Name ?? "—";
+        TopPuName = chars.FirstOrDefault(c => c.Rarity == "普")?.Name ?? "—";
 
         // —— 统计页：分卡池汇总（基础集，含全部卡池）——
         var poolStats = baseList.GroupBy(r => r.Pool)
@@ -447,19 +475,64 @@ public partial class GachaRecordViewModel : ViewModelBase
             : $"共 {_all.Count} 条，当前显示 {filtered.Count} 条";
     }
 
-    private void ComputePity(List<GachaRecordRow> rows)
+    /// <summary>
+    /// 跨卡池的全局计数。顺序用采集行序（_all 天然为各文件内 index 升序=游戏列表自上而下，最新在前），
+    /// 不按时间排也不按 index 键重排：同一个十连共享一个时间戳，秒内先后只有列表位说了算；
+    /// 多文件时 index 各自从 1 起会互相打架。
+    /// </summary>
+    private void ComputeGoldStats()
     {
-        PitySinceKuang = PityOf(rows, "狂");
-        PitySinceWei = PityOf(rows, "危");
+        // 旧→新 = 采集顺序反转
+        var chrono = Enumerable.Reverse(_all).ToList();
+        (AvgPerKuangText, PitySinceKuang) = GoldSpacing(chrono, "狂");
+        (_, PitySinceWei) = GoldSpacing(chrono, "危");
+
+        // 狂级出金明细：从上一个狂的下一抽起计数（含本狂自身），最新出金排最前
+        var pulls = new List<GoldPull>();
+        var prev = -1;
+        for (var i = 0; i < chrono.Count; i++)
+        {
+            if (chrono[i].Rarity != "狂")
+                continue;
+            pulls.Add(new GoldPull
+            {
+                Name = chrono[i].Name,
+                Pulls = i - prev,
+                Time = chrono[i].Time,
+                Avatar = LoadAvatar("狂", chrono[i].Name)
+            });
+            prev = i;
+        }
+        pulls.Reverse();
+        GoldPulls.Clear();
+        foreach (var g in pulls)
+            GoldPulls.Add(g);
     }
 
-    /// <summary>按时间倒序，数到最近一次该稀有度之前累计了多少抽（未出）。全都没有则等于总数。</summary>
+    private static (string Avg, int Pity) GoldSpacing(List<GachaRecordRow> chrono, string rarity)
+    {
+        var pos = new List<int>();
+        for (var i = 0; i < chrono.Count; i++)
+            if (chrono[i].Rarity == rarity)
+                pos.Add(i);
+
+        if (pos.Count == 0)
+            return ("—", chrono.Count);
+
+        var pity = chrono.Count - 1 - pos[^1]; // 最近一次之后累计的抽数
+
+        var gaps = new List<int> { pos[0] + 1 }; // 起点到第一次出金
+        for (var i = 1; i < pos.Count; i++)
+            gaps.Add(pos[i] - pos[i - 1]);        // 上一个到下一个之间跨越的抽数
+
+        return (gaps.Average().ToString("F1"), pity);
+    }
+
+    /// <summary>按行序（采集时即游戏列表顺序，最新在前）数到最近一次该稀有度之前累计了多少抽。</summary>
     private static int PityOf(List<GachaRecordRow> rows, string rarity)
     {
-        var ordered = rows.OrderByDescending(r => r.Time, StringComparer.Ordinal)
-                          .ThenByDescending(r => r.Index);
         var n = 0;
-        foreach (var r in ordered)
+        foreach (var r in rows)
         {
             if (r.Rarity == rarity)
                 return n;
@@ -491,7 +564,8 @@ public partial class GachaRecordViewModel : ViewModelBase
 
     private static readonly Dictionary<string, IImage?> AvatarCache = new();
 
-    private static IImage? LoadAvatar(string name)
+    /// <summary>角色头像：resource/base/image/头像/&lt;稀有度&gt;级/&lt;名&gt;.png。</summary>
+    private static IImage? LoadAvatar(string rarity, string name)
     {
         if (AvatarCache.TryGetValue(name, out var cached))
             return cached;
@@ -499,7 +573,7 @@ public partial class GachaRecordViewModel : ViewModelBase
         IImage? img = null;
         try
         {
-            var path = Path.Combine(AppPaths.DataRoot, "resource", "base", "image", "狂级头像", name + ".png");
+            var path = Path.Combine(AppPaths.DataRoot, "resource", "base", "image", "头像", rarity + "级", name + ".png");
             if (File.Exists(path))
                 img = new Bitmap(path);
         }
@@ -543,7 +617,7 @@ public sealed class CharacterStat
     public required int Count { get; init; }
     public required string Rarity { get; init; }
 
-    /// <summary>狂级角色头像（resource/base/image/狂级头像/&lt;名&gt;.png）；无图为 null。</summary>
+    /// <summary>角色头像（resource/base/image/头像/&lt;稀有度级&gt;/&lt;名&gt;.png）；无图为 null。</summary>
     public IImage? Avatar { get; init; }
     public bool HasAvatar => Avatar != null;
 
@@ -562,6 +636,20 @@ public sealed class PoolStat
     public required int Pu { get; init; }
     public required string AvgPerKuang { get; init; }
     public required int PitySinceKuang { get; init; }
+}
+
+/// <summary>概览页狂级出金明细一行：距上一个狂的第几抽出金（含本次狂自身，带头像）。</summary>
+public sealed class GoldPull
+{
+    public required string Name { get; init; }
+    public required int Pulls { get; init; }
+    public required string Time { get; init; }
+
+    /// <summary>狂级出金行的头像（resource/base/image/头像/狂级/&lt;名&gt;.png）；无图为 null。</summary>
+    public IImage? Avatar { get; init; }
+    public bool HasAvatar => Avatar != null;
+    public string Initial => string.IsNullOrEmpty(Name) ? "?" : Name[..1];
+    public string Display => $"{Pulls} 抽";
 }
 
 /// <summary>稀有度配色（狂棕/危紫/普蓝），实测取色。</summary>

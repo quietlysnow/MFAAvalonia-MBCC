@@ -140,34 +140,34 @@
                             </Border>
                         </WrapPanel>
 
-                        <!-- 角色次数卡片墙 -->
-                        <TextBlock Classes="SectionTitle" Text="角色获得次数" />
-                        <ItemsControl ItemsSource="{Binding CharacterStats}">
+                        <!-- 狂级出金记录：距上一个狂第几抽出金（含自身），头像+名字 -->
+                        <TextBlock Classes="SectionTitle" Text="狂级出金记录" />
+                        <ItemsControl ItemsSource="{Binding GoldPulls}">
                             <ItemsControl.ItemsPanel>
                                 <ItemsPanelTemplate>
                                     <WrapPanel />
                                 </ItemsPanelTemplate>
                             </ItemsControl.ItemsPanel>
                             <ItemsControl.ItemTemplate>
-                                <DataTemplate x:DataType="pages:CharacterStat">
-                                    <Border Width="96" Margin="0,0,10,10" CornerRadius="10" Padding="8,10"
+                                <DataTemplate x:DataType="pages:GoldPull">
+                                    <Border Margin="0,0,8,8" CornerRadius="8" Padding="8,6"
                                             Background="{DynamicResource SukiCardBackground}">
-                                        <StackPanel Spacing="6">
-                                            <Panel Width="42" Height="42" HorizontalAlignment="Center">
-                                                <Border CornerRadius="9" ClipToBounds="True" Background="{Binding RarityBrush}"
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <Panel Width="34" Height="34">
+                                                <Border CornerRadius="17" ClipToBounds="True" Background="#C0915B"
                                                         IsVisible="{Binding HasAvatar}">
-                                                    <Image Source="{Binding Avatar}" Stretch="UniformToFill" Width="42" Height="42" />
+                                                    <Image Source="{Binding Avatar}" Stretch="UniformToFill" Width="34" Height="34" />
                                                 </Border>
-                                                <Border CornerRadius="9" Background="{Binding RarityBrush}"
+                                                <Border CornerRadius="17" Background="#C0915B"
                                                         IsVisible="{Binding !HasAvatar}">
-                                                    <TextBlock Text="{Binding Initial}" FontSize="20" FontWeight="Bold"
+                                                    <TextBlock Text="{Binding Initial}" FontSize="16" FontWeight="Bold"
                                                                Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center" />
                                                 </Border>
                                             </Panel>
-                                            <TextBlock Text="{Binding Name}" FontSize="12" TextAlignment="Center"
-                                                       TextTrimming="CharacterEllipsis" Foreground="{DynamicResource SukiText}" />
-                                            <TextBlock Text="{Binding Count}" FontWeight="Bold" FontSize="15" TextAlignment="Center"
-                                                       Foreground="{DynamicResource SukiLowText}" />
+                                            <StackPanel VerticalAlignment="Center" Spacing="1">
+                                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="13" Foreground="#C0915B" />
+                                                <TextBlock Text="{Binding Display}" FontSize="11" Foreground="{DynamicResource SukiLowText}" />
+                                            </StackPanel>
                                         </StackPanel>
                                     </Border>
                                 </DataTemplate>
@@ -214,7 +214,7 @@
                                         <Setter Property="Background" Value="{Binding RowTint}" />
                                     </Style>
                                     <Style Selector="DataGridCell">
-                                        <Setter Property="Background" Value="{Binding RowTint}" />
+                                        <Setter Property="Background" Value="Transparent" />
                                         <Setter Property="HorizontalContentAlignment" Value="Left" />
                                         <Setter Property="VerticalContentAlignment" Value="Center" />
                                         <Setter Property="Padding" Value="10,5" />
@@ -288,53 +288,79 @@
             </TabItem>
 
             <TabItem Header="统计">
-                <Border Grid.Row="1" CornerRadius="10" ClipToBounds="True" Margin="4,8,4,4" BorderThickness="1"
-                        BorderBrush="{DynamicResource SukiBorderBrush}">
-                    <DataGrid ItemsSource="{Binding PoolStats}"
-                              x:CompileBindings="False"
-                              AutoGenerateColumns="False" IsReadOnly="True"
-                              CanUserSortColumns="False" CanUserReorderColumns="False"
-                              GridLinesVisibility="All" HeadersVisibility="Column" SelectionMode="Single">
-                        <DataGrid.Styles>
-                            <Style Selector="DataGridCell">
-                                <Setter Property="HorizontalContentAlignment" Value="Center" />
-                                <Setter Property="VerticalContentAlignment" Value="Center" />
-                                <Setter Property="Padding" Value="8,7" />
-                            </Style>
-                            <Style Selector="DataGridColumnHeader">
-                                <Setter Property="HorizontalContentAlignment" Value="Center" />
-                                <Setter Property="VerticalContentAlignment" Value="Center" />
-                                <Setter Property="Padding" Value="8,9" />
-                                <Setter Property="FontSize" Value="13" />
-                                <Setter Property="FontWeight" Value="SemiBold" />
-                                <Setter Property="Background" Value="#37415A" />
-                                <Setter Property="Foreground" Value="#FFFFFF" />
-                                <Setter Property="Template">
-                                    <ControlTemplate>
-                                        <Border Background="{TemplateBinding Background}"
-                                                BorderBrush="#4A5670" BorderThickness="0,0,1,0"
-                                                Padding="{TemplateBinding Padding}">
-                                            <ContentPresenter Content="{TemplateBinding Content}"
-                                                              ContentTemplate="{TemplateBinding ContentTemplate}"
-                                                              HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
-                                                              VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
-                                                              TextBlock.Foreground="{TemplateBinding Foreground}" />
-                                        </Border>
-                                    </ControlTemplate>
-                                </Setter>
-                            </Style>
-                        </DataGrid.Styles>
-                        <DataGrid.Columns>
-                            <DataGridTextColumn Header="卡池" Binding="{Binding Pool}" Width="1.6*" />
-                            <DataGridTextColumn Header="总抽数" Binding="{Binding Total}" Width="90" />
-                            <DataGridTextColumn Header="狂" Binding="{Binding Kuang}" Width="70" />
-                            <DataGridTextColumn Header="危" Binding="{Binding Wei}" Width="70" />
-                            <DataGridTextColumn Header="普" Binding="{Binding Pu}" Width="70" />
-                            <DataGridTextColumn Header="平均出货" Binding="{Binding AvgPerKuang}" Width="100" />
-                            <DataGridTextColumn Header="距上次狂" Binding="{Binding PitySinceKuang}" Width="100" />
-                        </DataGrid.Columns>
-                    </DataGrid>
-                </Border>
+                <ScrollViewer Padding="4,8">
+                    <StackPanel Spacing="14">
+                        <!-- 顶部汇总卡 -->
+                        <WrapPanel>
+                            <Border Classes="Card" MinWidth="150" Margin="0,0,12,12">
+                                <StackPanel>
+                                    <TextBlock Classes="StatLabel" Text="总抽数" />
+                                    <TextBlock Classes="StatValue" Text="{Binding DisplayCount}" />
+                                    <TextBlock Classes="StatLabel" Text="{Binding StatusText}" Margin="0,4,0,0"
+                                               TextTrimming="CharacterEllipsis" MaxWidth="220" />
+                                </StackPanel>
+                            </Border>
+                            <Border Classes="Card" MinWidth="150" Margin="0,0,12,12">
+                                <StackPanel>
+                                    <TextBlock Classes="StatLabel" Text="狂" />
+                                    <TextBlock Classes="StatValue" Text="{Binding KuangCount}" Foreground="#C0915B" />
+                                    <TextBlock Classes="StatLabel" Text="{Binding TopKuangName, StringFormat='最多：{0}'}"
+                                               TextTrimming="CharacterEllipsis" MaxWidth="150" />
+                                </StackPanel>
+                            </Border>
+                            <Border Classes="Card" MinWidth="150" Margin="0,0,12,12">
+                                <StackPanel>
+                                    <TextBlock Classes="StatLabel" Text="危" />
+                                    <TextBlock Classes="StatValue" Text="{Binding WeiCount}" Foreground="#9158BF" />
+                                    <TextBlock Classes="StatLabel" Text="{Binding TopWeiName, StringFormat='最多：{0}'}"
+                                               TextTrimming="CharacterEllipsis" MaxWidth="150" />
+                                </StackPanel>
+                            </Border>
+                            <Border Classes="Card" MinWidth="150" Margin="0,0,12,12">
+                                <StackPanel>
+                                    <TextBlock Classes="StatLabel" Text="普" />
+                                    <TextBlock Classes="StatValue" Text="{Binding PuCount}" Foreground="#6470C1" />
+                                    <TextBlock Classes="StatLabel" Text="{Binding TopPuName, StringFormat='最多：{0}'}"
+                                               TextTrimming="CharacterEllipsis" MaxWidth="150" />
+                                </StackPanel>
+                            </Border>
+                        </WrapPanel>
+
+                        <!-- 角色获得次数卡片墙（按 狂→危→普 排列） -->
+                        <TextBlock Classes="SectionTitle" Text="角色获得次数（狂 → 危 → 普）" />
+                        <ItemsControl ItemsSource="{Binding CharacterStats}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="pages:CharacterStat">
+                                    <Border Width="96" Margin="0,0,10,10" CornerRadius="10" Padding="8,10"
+                                            Background="{DynamicResource SukiCardBackground}">
+                                        <StackPanel Spacing="6">
+                                            <Panel Width="42" Height="42" HorizontalAlignment="Center">
+                                                <Border CornerRadius="9" ClipToBounds="True" Background="{Binding RarityBrush}"
+                                                        IsVisible="{Binding HasAvatar}">
+                                                    <Image Source="{Binding Avatar}" Stretch="UniformToFill" Width="42" Height="42" />
+                                                </Border>
+                                                <Border CornerRadius="9" Background="{Binding RarityBrush}"
+                                                        IsVisible="{Binding !HasAvatar}">
+                                                    <TextBlock Text="{Binding Initial}" FontSize="20" FontWeight="Bold"
+                                                               Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                                </Border>
+                                            </Panel>
+                                            <TextBlock Text="{Binding Name}" FontSize="12" TextAlignment="Center"
+                                                       TextTrimming="CharacterEllipsis" Foreground="{DynamicResource SukiText}" />
+                                            <TextBlock Text="{Binding Count}" FontWeight="Bold" FontSize="15" TextAlignment="Center"
+                                                       Foreground="{DynamicResource SukiLowText}" />
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </ScrollViewer>
             </TabItem>
         </TabControl>
     </Grid>
