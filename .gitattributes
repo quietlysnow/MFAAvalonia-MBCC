@@ -1,1 +1,4 @@
 MFAAvalonia.Android/ThirdParty/Shizuku/shizuku.apk binary
+
+# 本机 core.autocrlf=true，脚本若按 CRLF 检出，bash 会报 $'\r': command not found
+tools/*.sh text eol=lf

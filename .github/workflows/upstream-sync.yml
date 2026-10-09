@@ -1,0 +1,171 @@
+# 上游同步机器人：定时把 MaaXYZ/MFAAvalonia 的 master 合并进定制分支。
+#   能干净合并 → 直接推回本仓库；有冲突 → 分支原样不动，开/更新一个 issue 等人处理。
+#
+# 两点前提：
+#   1. GitHub 的定时工作流只在**默认分支**上运行，所以本文件必须留在 feature/gacha-record 上。
+#   2. 公开仓库连续 60 天没有活动时 GitHub 会自动停掉定时任务（会发邮件）；在 Actions 页面
+#      点一次 "Run workflow"、或往仓库推任何一次提交，都能重新激活。
+#
+# 这里只合代码，不构建也不部署（那些在本地跑 tools/sync-upstream.sh，见 AGENTS.md §5/§7）。
+name: 同步上游
+
+on:
+  schedule:
+    - cron: "20 3 * * *" # 每天 03:20 UTC = 北京时间 11:20
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 只检查落后多少，不合并不推送
+        type: boolean
+        default: false
+
+permissions:
+  contents: write # 推送合并结果
+  issues: write # 冲突时开/关 issue
+
+concurrency:
+  group: sync-upstream
+  cancel-in-progress: false
+
+env:
+  UPSTREAM_REPO: MaaXYZ/MFAAvalonia
+  UPSTREAM_BRANCH: master
+  TARGET_BRANCH: feature/gacha-record
+  CONFLICT_TITLE: 上游更新需要手动合并
+  CONFLICT_LABEL: upstream-sync
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出定制分支
+        uses: actions/checkout@v4
+        with:
+          ref: feature/gacha-record
+          fetch-depth: 0
+
+      - name: 取上游
+        run: |
+          set -euo pipefail
+          git remote add upstream "https://github.com/${UPSTREAM_REPO}.git"
+          git fetch --no-tags upstream "${UPSTREAM_BRANCH}"
+
+      - name: 统计差距
+        id: gap
+        run: |
+          set -euo pipefail
+          behind=$(git rev-list --count "HEAD..upstream/${UPSTREAM_BRANCH}")
+          ahead=$(git rev-list --count "upstream/${UPSTREAM_BRANCH}..HEAD")
+          echo "behind=${behind}" >> "$GITHUB_OUTPUT"
+          {
+            echo "## 上游同步：${UPSTREAM_REPO}@${UPSTREAM_BRANCH}"
+            echo ""
+            echo "- 落后上游：**${behind}** 个提交"
+            echo "- 分支独有：${ahead} 个提交（定制改动）"
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$behind" -gt 0 ]; then
+            {
+              echo ""
+              echo '```'
+              git log --oneline --no-decorate "HEAD..upstream/${UPSTREAM_BRANCH}"
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: 合并上游
+        id: merge
+        # 定时触发时 github.event.inputs 为空，!='true' 自然成立
+        if: steps.gap.outputs.behind != '0' && github.event.inputs.dry_run != 'true'
+        run: |
+          set -uo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          fw() { sed -n 's/.*Maa\.Framework\.Runtimes" Version="\([^"]*\)".*/\1/p' MFAAvalonia/MFAAvalonia.csproj | sed -n '1p'; }
+          fw_before=$(fw)
+          if git merge -m "chore: 同步上游 ${UPSTREAM_REPO}@${UPSTREAM_BRANCH}（自动）" "upstream/${UPSTREAM_BRANCH}"; then
+            {
+              echo "conflict=false"
+              echo "fw_before=${fw_before}"
+              echo "fw_after=$(fw)"
+            } >> "$GITHUB_OUTPUT"
+          else
+            # 冲突：记下冲突文件后把工作区还原，绝不推送半截状态
+            git diff --name-only --diff-filter=U | sort -u > "$RUNNER_TEMP/conflicts.txt" || true
+            git merge --abort
+            echo "conflict=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: 推送合并结果
+        # 推送被拒（比如本地刚推过东西）会让这次运行变红，下次运行会重试；GITHUB_TOKEN 的推送不会触发其它工作流。
+        if: steps.merge.outputs.conflict == 'false'
+        run: |
+          set -euo pipefail
+          git push origin "HEAD:refs/heads/${TARGET_BRANCH}"
+
+      - name: 有冲突 → 开/更新 issue
+        if: steps.merge.outputs.conflict == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh label create "${CONFLICT_LABEL}" --repo "$GITHUB_REPOSITORY" --color FBCA04 \
+            --description "上游同步机器人开的问题单" >/dev/null 2>&1 || true
+          {
+            echo "定时同步检测到上游有 ${UPSTREAM_REPO}@${UPSTREAM_BRANCH} 的新提交，但**自动合并有冲突**，已放弃合并：分支保持原样，不会留下半截的合并状态。"
+            echo ""
+            echo "### 冲突文件"
+            echo ""
+            sed 's/^/- `/; s/$/`/' "$RUNNER_TEMP/conflicts.txt"
+            echo ""
+            echo "### 本地怎么处理"
+            echo ""
+            echo '```bash'
+            echo "git fetch origin && git merge origin/master"
+            echo "# 解决冲突、提交之后："
+            echo "tools/sync-upstream.sh --push --deploy"
+            echo '```'
+            echo ""
+            echo "参照 AGENTS.md §3/§7：冲突基本集中在 3 个注册点文件（App.axaml.cs、Instances.cs、RootViewContent.axaml），多为「双方都保留」。"
+            echo ""
+            echo "运行记录：${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          } > "$RUNNER_TEMP/body.md"
+          number=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --label "$CONFLICT_LABEL" \
+            --json number --jq '.[0].number // ""' 2>/dev/null || true)
+          if [ -n "$number" ]; then
+            gh issue comment "$number" --repo "$GITHUB_REPOSITORY" --body-file "$RUNNER_TEMP/body.md"
+          else
+            gh issue create --repo "$GITHUB_REPOSITORY" --title "$CONFLICT_TITLE" --label "$CONFLICT_LABEL" \
+              --body-file "$RUNNER_TEMP/body.md"
+          fi
+
+      - name: 合并成功 → 关闭旧 issue 并写摘要
+        if: steps.merge.outputs.conflict == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          fw_before='${{ steps.merge.outputs.fw_before }}'
+          fw_after='${{ steps.merge.outputs.fw_after }}'
+          {
+            echo ""
+            echo "## 已自动合并并推送"
+            echo ""
+            echo "- \`${TARGET_BRANCH}\` 现在的提交：\`$(git rev-parse --short HEAD)\`"
+            echo "- \`Maa.Framework.Runtimes\`：\`${fw_before}\` → \`${fw_after}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$fw_before" != "$fw_after" ]; then
+            {
+              echo ""
+              echo "> ⚠ **框架版本变了**：MBCCtools 侧要同步 \`pip install MaaFw==<新版本>\`，否则 Custom 节点协议不匹配连不上（AGENTS.md §7）。"
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+          {
+            echo ""
+            echo "本地跟上（拉代码 + 构建 + 部署）：\`tools/sync-upstream.sh --deploy\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+          number=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --label "$CONFLICT_LABEL" \
+            --json number --jq '.[0].number // ""' 2>/dev/null || true)
+          if [ -n "$number" ]; then
+            gh issue close "$number" --repo "$GITHUB_REPOSITORY" \
+              --comment "上游已自动合并并推送（$(git rev-parse --short HEAD)），此前的冲突已解决。"
+          fi
