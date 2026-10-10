@@ -34,6 +34,10 @@ public static class ActivityRefreshLauncher
             }
 
             var python = ReadAgentInterpreter() ?? "python";
+            // 发布包的 child_exec 是包内相对路径（./agent/python/python.exe）：相对路径交给
+            // Process.Start 会按父进程 CWD 解析，这里自己按数据根展开（与 AgentHelper 同口径）
+            if (python.Contains('/') || python.Contains('\\'))
+                python = Path.GetFullPath(python, AppPaths.DataRoot);
             var psi = new ProcessStartInfo
             {
                 FileName = python,
