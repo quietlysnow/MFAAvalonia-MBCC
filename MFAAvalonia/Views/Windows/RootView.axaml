@@ -215,6 +215,7 @@
     <suki:SukiWindow.LogoContent>
         <Image
             Height="25"
+            RenderOptions.BitmapInterpolationMode="HighQuality"
             Source="{x:Static helper:IconHelper.Icon}"
             Stretch="Uniform"
             Width="28" />

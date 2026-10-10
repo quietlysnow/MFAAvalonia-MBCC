@@ -51,6 +51,7 @@ MFAAvalonia 没有"资源侧声明自定义页面"的机制，任何界面都必
 - **侧栏首项（Home）必须保持 `InstanceContainerView`**，它是"主页 = 任务"。不要为了调试或截图把默认页改成别的。
 - **不要动上游文件的既有逻辑**，只做上面这类插入式改动；样式尽量写在页面自己的 `<UserControl.Styles>` 里，避免再往 `App.axaml` 加 `ResourceInclude`。**唯一的例外是 `.github/workflows/Release.yml`**（2026-10-10 用户指定）：构建矩阵只留 Windows（`win-x64` / `win-arm64`）与 macOS（`osx-x64` / `osx-arm64`），linux 条目和 Android job 已删。跟进上游时保留本 fork 的版本，别把 linux / Android 加回来；macOS 也不能删——它的包要在 macOS 上构建并做 adhoc 签名，本地 Windows 出不了。
 - 图标用 `FluentIcons.Common.Icon` 的成员名，**这个版本里没有的名字会编译报错**（`CalendarLtr` 就不存在，日历类可用 `CalendarClock`）。
+- `Helper/IconHelper.cs` 的 `WindowIcon` **必须**把 `.ico` 原始字节交给框架（`new WindowIcon(new MemoryStream(bytes))`）。Avalonia 的 `LoadIcon(IBitmapImpl)` 会先把位图重新编码成 PNG，`Win32Icon` 拿不到 ICO 目录就只能"按位图原尺寸建 HICON"，结果是 512px 位图被 Windows 缩到标题栏的 16px —— 图标发糊。**别为了"简化"改回传 Bitmap**（2026-10-10；核对方法见 MBCCtools `AGENTS.md` §13.3，它会打印窗口真正设上去的图标尺寸）。
 - 页面文案中文；与既有页面保持同一套设计语言（`Border.Card`、`TextBlock.SectionTitle`、`TextBlock.Hint`）。颜色令牌：抽卡页在 `Assets/Style/GachaTheme.axaml`；活动页的状态色集中在 `ActivityPalette`（C# 单一来源，XAML 只绑 `StatusBrush`）。
 
 ## 4. 布局约定（这个壳里踩过的坑）
