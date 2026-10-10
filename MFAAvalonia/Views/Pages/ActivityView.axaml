@@ -1,0 +1,134 @@
+<UserControl
+    d:DesignHeight="760"
+    d:DesignWidth="1120"
+    mc:Ignorable="d"
+    x:Class="MFAAvalonia.Views.Pages.ActivityView"
+    x:DataType="pages:ActivityViewModel"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:pages="clr-namespace:MFAAvalonia.ViewModels.Pages"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <Design.DataContext>
+        <pages:ActivityViewModel />
+    </Design.DataContext>
+
+    <UserControl.Styles>
+        <Style Selector="Border.Card">
+            <Setter Property="CornerRadius" Value="10" />
+            <Setter Property="Padding" Value="14" />
+            <Setter Property="Background" Value="{DynamicResource SukiCardBackground}" />
+        </Style>
+        <Style Selector="TextBlock.SectionTitle">
+            <Setter Property="FontSize" Value="15" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource SukiText}" />
+        </Style>
+        <Style Selector="TextBlock.Hint">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Foreground" Value="{DynamicResource SukiLowText}" />
+        </Style>
+
+        <!--  活动名：平时正常文字色，3 天内结束时标红（颜色只有 ActivityPalette 一处来源）  -->
+        <Style Selector="TextBlock.ActivityName">
+            <Setter Property="Foreground" Value="{DynamicResource SukiText}" />
+        </Style>
+        <Style Selector="TextBlock.ActivityName.alert">
+            <Setter Property="Foreground" Value="{x:Static pages:ActivityPalette.Alert}" />
+        </Style>
+
+        <!--  类型小标签：活动 / 密令  -->
+        <Style Selector="Border.Tag">
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="Padding" Value="6,1" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Background" Value="{DynamicResource SukiPrimaryColor15}" />
+        </Style>
+        <Style Selector="Border.Tag TextBlock">
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Foreground" Value="{DynamicResource SukiLowText}" />
+        </Style>
+    </UserControl.Styles>
+
+    <Grid Margin="16" RowDefinitions="Auto,*">
+
+        <!--  顶部：摘要 + 刷新 + 数据来源/采集时间  -->
+        <Border Grid.Row="0" Classes="Card" Margin="0,0,0,12" Padding="14,12">
+            <StackPanel Spacing="6">
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                    <TextBlock Classes="SectionTitle" Text="活动提醒" VerticalAlignment="Center" />
+                    <TextBlock Classes="Hint" Text="{Binding SummaryText}" VerticalAlignment="Center" />
+                    <Button Content="刷新" Command="{Binding LoadCommand}" VerticalAlignment="Center" />
+                </StackPanel>
+                <TextBlock Classes="Hint" TextWrapping="Wrap" Text="{Binding StatusText}" />
+            </StackPanel>
+        </Border>
+
+        <ScrollViewer Grid.Row="1" Padding="4,0,0,0">
+            <StackPanel Spacing="10">
+                <TextBlock Classes="Hint" TextWrapping="Wrap" MaxWidth="620"
+                           Text="{Binding EmptyHint}" IsVisible="{Binding IsEmpty}" />
+
+                <ItemsControl ItemsSource="{Binding Items}" IsVisible="{Binding !IsEmpty}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="pages:ActivityRow">
+                            <Border Classes="Card" Margin="0,0,0,10" Padding="0" ClipToBounds="True">
+                                <Grid ColumnDefinitions="Auto,*">
+                                    <Border Grid.Column="0" Width="6" Background="{Binding StatusBrush}"
+                                            CornerRadius="10,0,0,10" />
+
+                                    <StackPanel Grid.Column="1" Margin="12,10,14,10" Spacing="6">
+                                        <!--  进度条：底槽 + 按「已过时长/总时长」横向拉伸的填充（ScaleX 不用量宽度），
+                                              活动名与倒计时叠在条上；外框 ClipToBounds 负责把填充裁进圆角  -->
+                                        <Border CornerRadius="8" ClipToBounds="True"
+                                                Background="{DynamicResource SukiPrimaryColor5}">
+                                            <Panel Height="42">
+                                                <Border Background="{Binding StatusFillBrush}"
+                                                        RenderTransformOrigin="0%,0%">
+                                                    <Border.RenderTransform>
+                                                        <ScaleTransform ScaleX="{Binding ElapsedRatio}" />
+                                                    </Border.RenderTransform>
+                                                </Border>
+
+                                                <Grid ColumnDefinitions="*,Auto" Margin="12,0">
+                                                    <TextBlock Grid.Column="0"
+                                                               Classes="ActivityName"
+                                                               Classes.alert="{Binding IsAlerting}"
+                                                               Text="{Binding Name}"
+                                                               FontSize="15" FontWeight="SemiBold"
+                                                               TextTrimming="CharacterEllipsis"
+                                                               VerticalAlignment="Center" />
+                                                    <TextBlock Grid.Column="1" Margin="10,0,0,0"
+                                                               Text="{Binding CountdownText}"
+                                                               FontSize="12" FontWeight="SemiBold"
+                                                               Foreground="{Binding StatusBrush}"
+                                                               VerticalAlignment="Center" />
+                                                </Grid>
+                                            </Panel>
+                                        </Border>
+
+                                        <Grid ColumnDefinitions="*,Auto">
+                                            <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8">
+                                                <TextBlock Classes="Hint" Text="{Binding RangeText}"
+                                                           VerticalAlignment="Center" />
+                                                <Border Classes="Tag">
+                                                    <TextBlock Text="{Binding TypeLabel}" />
+                                                </Border>
+                                            </StackPanel>
+                                            <TextBlock Grid.Column="1"
+                                                       Text="{Binding StatusText}"
+                                                       FontSize="12" FontWeight="SemiBold"
+                                                       Foreground="{Binding StatusBrush}"
+                                                       VerticalAlignment="Center" />
+                                        </Grid>
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</UserControl>

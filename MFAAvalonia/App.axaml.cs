@@ -226,6 +226,16 @@ public partial class App : Application
 
                 TrayIconManager.InitializeTrayIcon(this, Instances.RootView, Instances.RootViewModel);
 
+                // 启动即后台刷新「活动提醒」数据（agent/wiki_activity.py，约 1-5 秒，不阻塞启动）
+                var activityRefresh = ActivityRefreshLauncher.Launch();
+
+                // 窗口就绪后（等上面那次采集落档）在主页右上角播报 3 天内结束的活动。
+                // 这里不能只挂 Opened：实测窗口比这行代码更早就显示了，Opened 早已过去。
+                if (window.IsLoaded)
+                    ActivityReminder.ScheduleAfterStartup(activityRefresh);
+                else
+                    window.Loaded += (_, _) => ActivityReminder.ScheduleAfterStartup(activityRefresh);
+
                 if (GlobalConfiguration.HasFileAccessError)
                 {
                     var reason = (GlobalConfiguration.LastFileAccessErrorMessage ?? string.Empty).Trim();
@@ -389,6 +399,7 @@ public partial class App : Application
             .AddView<SettingsView, SettingsViewModel>(services)
             .AddView<ScreenshotView, ScreenshotViewModel>(services)
             .AddView<GachaRecordView, GachaRecordViewModel>(services)
+            .AddView<ActivityView, ActivityViewModel>(services)
 
             // Add additional views
             .AddView<AddTaskDialogView, AddTaskDialogViewModel>(services)

@@ -39,6 +39,8 @@
     <suki:SukiMainHost>
         <suki:SukiMainHost.Hosts>
             <suki:SukiToastHost Manager="{x:Static helper:Instances.ToastManager}" />
+            <!--  活动提醒专用（ActivityReminder.Manager），与桌面端同一个右上角 host  -->
+            <suki:SukiToastHost Manager="{x:Static helper:ActivityReminder.Manager}" Position="TopRight" />
             <suki:SukiDialogHost Manager="{x:Static helper:Instances.DialogManager}" />
         </suki:SukiMainHost.Hosts>
         <Grid RowDefinitions="*,Auto">

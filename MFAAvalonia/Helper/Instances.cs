@@ -442,6 +442,8 @@ public static partial class Instances
     private static ScreenshotViewModel _screenshotViewModel;
     private static GachaRecordView _gachaRecordView;
     private static GachaRecordViewModel _gachaRecordViewModel;
+    private static ActivityView _activityView;
+    private static ActivityViewModel _activityViewModel;
     
     private static ConnectSettingsUserControl _connectSettingsUserControl;
     private static ConnectSettingsUserControlModel _connectSettingsUserControlModel;

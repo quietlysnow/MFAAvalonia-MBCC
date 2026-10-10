@@ -225,6 +225,11 @@
     </Design.DataContext>
     <suki:SukiWindow.Hosts>
         <suki:SukiToastHost Manager="{x:Static helper:Instances.ToastManager}" />
+        <!--  活动提醒专用（ActivityReminder.Manager）：只在主页右上角播报「3 天内结束」，
+              单独一个 host 是为了不把上面那条全局 toast 的位置一起挪走；
+              Margin 顶部让开标题栏（右侧是窗口按钮），不然会盖住最小化/关闭  -->
+        <suki:SukiToastHost Manager="{x:Static helper:ActivityReminder.Manager}"
+                            Position="TopRight" Margin="0,44,0,0" />
         <suki:SukiDialogHost
             Margin="6,44,6,6"
             Manager="{x:Static helper:Instances.DialogManager}"
