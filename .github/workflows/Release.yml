@@ -1,4 +1,4 @@
-name: Windows Release
+name: "Windows & macOS Release"
 
 on:
   push:
@@ -77,8 +77,22 @@ jobs:
     strategy:
       matrix:
         include:
-          # fork 只发 Windows：linux / macOS / Android 的构建已移除，
-          # 跟进上游时不要加回来（见 AGENTS.md §3/§7）。
+          # fork 只出桌面端：Windows / macOS 各 x64、arm64。
+          # linux 条目与 Android job 已删，跟进上游时不要加回来（见 AGENTS.md §3/§7）。
+          - os: macos-latest
+            platform: osx
+            arch: x64
+            compress_cmd: "zip -r -9"
+            ext: zip
+            is_macos: true
+
+          - os: macos-latest
+            platform: osx
+            arch: arm64
+            compress_cmd: "zip -r -9"
+            ext: zip
+            is_macos: true
+
           - os: windows-latest
             platform: win
             arch: x64
@@ -216,14 +230,6 @@ jobs:
         with:
           tag_name: ${{ needs.meta.outputs.tag }}
           body: |
-            ## 下载与安装
-
-            按电脑架构选一个包：`win-x64`（绝大多数电脑）或 `win-arm64`（Windows on ARM 设备）。
-            解压后把里面的文件覆盖到 MBCCtools 项目根目录，`MFAAvalonia.exe` 要与 `interface.json`、`record/` 同层。
-            发布包为非自包含构建，需要 .NET 10 桌面运行时。
-
-            ## 本次变更
-
             ${{ needs.changelog.outputs.release_body }}
           files: |
             artifacts/*.zip
