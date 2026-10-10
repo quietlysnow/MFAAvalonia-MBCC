@@ -23,6 +23,8 @@ build_output.txt
 # Local development scratch data
 /plans/
 /test_interface/
+/.qoder-credits/
+/.wwt-refs/
 
 # Local-only verification project
 /MFAAvalonia.Tests/
