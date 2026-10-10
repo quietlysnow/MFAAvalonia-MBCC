@@ -49,7 +49,7 @@ MFAAvalonia 没有"资源侧声明自定义页面"的机制，任何界面都必
 约束：
 
 - **侧栏首项（Home）必须保持 `InstanceContainerView`**，它是"主页 = 任务"。不要为了调试或截图把默认页改成别的。
-- **不要动上游文件的既有逻辑**，只做上面这类插入式改动；样式尽量写在页面自己的 `<UserControl.Styles>` 里，避免再往 `App.axaml` 加 `ResourceInclude`。
+- **不要动上游文件的既有逻辑**，只做上面这类插入式改动；样式尽量写在页面自己的 `<UserControl.Styles>` 里，避免再往 `App.axaml` 加 `ResourceInclude`。**唯一的例外是 `.github/workflows/Release.yml`**（2026-10-10 用户指定）：构建矩阵只留 `win-x64` / `win-arm64`，Android 那个 job 已删，推 `v*` tag 时云端只出这两个包；跟进上游时保留本 fork 的版本，别把 linux / macOS / Android 加回来。
 - 图标用 `FluentIcons.Common.Icon` 的成员名，**这个版本里没有的名字会编译报错**（`CalendarLtr` 就不存在，日历类可用 `CalendarClock`）。
 - 页面文案中文；与既有页面保持同一套设计语言（`Border.Card`、`TextBlock.SectionTitle`、`TextBlock.Hint`）。颜色令牌：抽卡页在 `Assets/Style/GachaTheme.axaml`；活动页的状态色集中在 `ActivityPalette`（C# 单一来源，XAML 只绑 `StatusBrush`）。
 
@@ -92,5 +92,6 @@ MFAAvalonia 没有"资源侧声明自定义页面"的机制，任何界面都必
 - 更新循环（2026-10-10 起自动化，两条路都以"合并提交只有一份"为前提）：`git fetch origin` → `git checkout feature/gacha-record` → `git merge origin/master` → 重新 publish 部署。冲突集中在 §3 那 3 个注册点文件，多为"双方都保留"。
   - **云端** `.github/workflows/upstream-sync.yml`：定时（北京时间 09:05 / 14:05 / 20:05，按上游活跃时段 09:00–次日 01:00 排的点）检测上游 `master`，能干净合并就自动合并并推回 `myfork`；有冲突则分支原样不动，改开一个带 `upstream-sync` 标签的 issue 等人处理。定时任务只在**默认分支**上跑，所以这个文件必须留在 `feature/gacha-record`；公开仓库连续 60 天无活动时 GitHub 会停掉定时任务，去 Actions 页点一次 Run workflow 即可恢复。
   - **本地** `tools/sync-upstream.sh`：默认「fetch 上游 + 对齐 `myfork` + 合并」，`--check` 只报告落后多少（落后退出码 1，可拿去做通知/定时），`--push` 推回 `myfork`，`--build`/`--deploy` 顺带 publish 及部署到 MBCCtools 根目录（内置 §5 那两个坑的防护：只覆盖构建产物、拦住根目录残留的 `MFAAvalonia.Core.dll`、程序在跑就拒绝部署）。它先快进到 `myfork` 的合并结果再补合，避免云端和本地各合一份而分叉；本地合完**建议带 `--push`**。
-  - 云端只合代码、不构建：合并后仍要在本机跑一次 `--deploy`（或 `--build` 后手动按 §5 部署）。
+  - 同步（`upstream-sync.yml`）只合代码、不构建：合并后仍要在本机跑一次 `--deploy`（或 `--build` 后手动按 §5 部署）。
+  - 发版线（2026-10-10 起）：推 `v*` tag 会触发 `Release.yml`，云端打包 Windows x64/arm64 两个包并创建/更新对应 Release（只留 Windows 是刻意的，见 §3）。不走 tag 也可以本地 publish 后 `gh release create` 手动发；同一个 tag 别两头发，否则发行说明会被云端那次的自动变更日志覆盖。
 - ⚠ 每次跟进后核对 `MFAAvalonia.csproj` 的 `Maa.Framework.Runtimes` 版本，与 MBCCtools 侧 `pip install MaaFw==<对应版本>` 保持一致，否则 Custom 节点协议不匹配连不上。
