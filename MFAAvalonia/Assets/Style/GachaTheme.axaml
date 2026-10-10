@@ -1,0 +1,26 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!--
+        抽卡记录页的设计令牌。
+
+        稀有度三色（狂棕金 / 危紫 / 普蓝）原本在 GachaRecordView.axaml 里硬编码了十几处，
+        C# 侧的 RarityPalette 又单独维护了一份；这里集中成唯一来源：
+        XAML 用 DynamicResource 引用，C# 由 RarityPalette 从应用资源里解析。
+        取值是对着游戏内抽卡记录界面的实测色，明暗主题共用同一套，所以不放 ThemeDictionaries。
+    -->
+    <SolidColorBrush x:Key="Gacha.Rarity.Kuang" Color="#C0915B" />
+    <SolidColorBrush x:Key="Gacha.Rarity.Wei" Color="#9158BF" />
+    <SolidColorBrush x:Key="Gacha.Rarity.Pu" Color="#6470C1" />
+
+    <!--  表格行底色：不透明色，半透明会让主题的隔行灰透出来  -->
+    <SolidColorBrush x:Key="Gacha.Rarity.Kuang.Tint" Color="#F3D9A6" />
+    <SolidColorBrush x:Key="Gacha.Rarity.Wei.Tint" Color="#E4CCF2" />
+    <SolidColorBrush x:Key="Gacha.Rarity.Pu.Tint" Color="#EEF0F8" />
+
+    <!--  记录表格表头：深蓝底白字，与行内的浅色稀有度底形成对比  -->
+    <SolidColorBrush x:Key="Gacha.Table.HeaderBackground" Color="#37415A" />
+    <SolidColorBrush x:Key="Gacha.Table.HeaderBorder" Color="#4A5670" />
+    <SolidColorBrush x:Key="Gacha.Table.HeaderForeground" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="Gacha.Table.CellForeground" Color="Black" />
+</ResourceDictionary>

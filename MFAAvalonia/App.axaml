@@ -19,6 +19,7 @@
                 <ResourceInclude Source="avares://MFAAvalonia.Core/Views/UserControls/SchedulePicker.axaml" />
                 <ResourceInclude Source="avares://MFAAvalonia.Core/Views/UserControls/MarqueeTextBlock.axaml" />
                 <ResourceInclude Source="avares://MFAAvalonia.Core/Assets/Style/InstanceTabsTheme.axaml" />
+                <ResourceInclude Source="avares://MFAAvalonia.Core/Assets/Style/GachaTheme.axaml" />
             </ResourceDictionary.MergedDictionaries>
             <ResourceDictionary.ThemeDictionaries>
                 <ResourceInclude Source="avares://MFAAvalonia.Core/Assets/Theme/LightTheme.axaml" x:Key="Light" />
