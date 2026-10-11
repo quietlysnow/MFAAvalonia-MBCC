@@ -91,7 +91,7 @@ MFAAvalonia 没有"资源侧声明自定义页面"的机制，任何界面都必
 
 - 远程：`origin` = 上游 `MaaXYZ/MFAAvalonia`（只 fetch）；`myfork` = 自己的公开 fork `quietlysnow/MFAAvalonia-MBCC`（默认分支就是 `feature/gacha-record`）；定制改动在 `feature/gacha-record` 分支。
 - 更新循环（2026-10-10 起自动化，两条路都以"合并提交只有一份"为前提）：`git fetch origin` → `git checkout feature/gacha-record` → `git merge origin/master` → 重新 publish 部署。冲突集中在 §3 那 3 个注册点文件，多为"双方都保留"。
-  - **云端** `.github/workflows/upstream-sync.yml`：定时（北京时间 09:05 / 14:05 / 20:05，按上游活跃时段 09:00–次日 01:00 排的点）检测上游 `master`，能干净合并就自动合并并推回 `myfork`；有冲突则分支原样不动，改开一个带 `upstream-sync` 标签的 issue 等人处理。定时任务只在**默认分支**上跑，所以这个文件必须留在 `feature/gacha-record`；公开仓库连续 60 天无活动时 GitHub 会停掉定时任务，去 Actions 页点一次 Run workflow 即可恢复。
+  - **云端** `.github/workflows/upstream-sync.yml`：定时（每天一次，北京时间 20:05）检测上游 `master`，能干净合并就自动合并并推回 `myfork`；有冲突则分支原样不动，改开一个带 `upstream-sync` 标签的 issue 等人处理。定时任务只在**默认分支**上跑，所以这个文件必须留在 `feature/gacha-record`；公开仓库连续 60 天无活动时 GitHub 会停掉定时任务，去 Actions 页点一次 Run workflow 即可恢复。
   - **本地** `tools/sync-upstream.sh`：默认「fetch 上游 + 对齐 `myfork` + 合并」，`--check` 只报告落后多少（落后退出码 1，可拿去做通知/定时），`--push` 推回 `myfork`，`--build`/`--deploy` 顺带 publish 及部署到 MBCCtools 根目录（内置 §5 那两个坑的防护：只覆盖构建产物、拦住根目录残留的 `MFAAvalonia.Core.dll`、程序在跑就拒绝部署）。它先快进到 `myfork` 的合并结果再补合，避免云端和本地各合一份而分叉；本地合完**建议带 `--push`**。
   - 同步（`upstream-sync.yml`）只合代码、不构建：合并后仍要在本机跑一次 `--deploy`（或 `--build` 后手动按 §5 部署）。
   - 发版线（2026-10-10 起）：推 `v*` tag 触发 `Release.yml`（fork 侧只保留 Windows / macOS 各 x64+arm64，见 §3），云端打包四个包并创建/更新对应 Release。**发版一律走云端 workflow，不要在本地 publish 后手发**（2026-10-10 用户定），两边对同一个 tag 各发一次会互相覆盖。
