@@ -1,0 +1,442 @@
+<UserControl
+    x:Class="MFAAvalonia.Views.Pages.GachaShareCard"
+    x:DataType="pages:GachaShareModel"
+    xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:pages="clr-namespace:MFAAvalonia.ViewModels.Pages"
+    Width="750">
+
+    <!--
+        晒卡分享卡：固定深色的独立设计稿（不跟应用主题走），由 GachaShareCard.Render 整卡离屏渲染成 PNG。
+        版式：头部称号 + 分池统计 + 成就胶囊 + 保底水位 + 按卡池分块的出金流（头像 / 抽数条 / 同批小头像）。
+
+        所有视觉属性都写成内联值（颜色/字号/圆角都在元素上），只借主题的控件模板；
+        渲染前必须先挂进视觉树（页面的隐藏宿主或 PageShot 的无头窗口），
+        模板与样式要挂在树里才会应用——纯离屏（不挂树）会排出高度 0 的空壳。
+    -->
+
+    <Border Background="#0E1218" Padding="16">
+        <StackPanel Spacing="12">
+
+            <!--  ═══ 头部：欧气称号 + 「档案统计自」盖章 ═══  -->
+            <Border Background="#151B24" CornerRadius="14" Padding="18,16">
+                <Grid ColumnDefinitions="*,Auto">
+                    <StackPanel Grid.Column="0" Spacing="7">
+                        <Border HorizontalAlignment="Left"
+                                Background="#142E28"
+                                CornerRadius="4"
+                                Padding="7,2">
+                            <TextBlock FontSize="11"
+                                       FontWeight="SemiBold"
+                                       Foreground="#3FD9A0"
+                                       Text="MBCC 逮捕档案" />
+                        </Border>
+                        <TextBlock FontSize="26"
+                                   FontWeight="Bold"
+                                   Foreground="#F1F5F9"
+                                   Text="{Binding Title, StringFormat='「{0}」'}" />
+                        <TextBlock FontSize="12" Foreground="#93A0B4" Text="{Binding Subtitle}" />
+                    </StackPanel>
+
+                    <Border Grid.Column="1"
+                            Margin="14,0,0,0"
+                            Padding="12,7"
+                            CornerRadius="8"
+                            BorderThickness="1"
+                            BorderBrush="#6E5A38"
+                            VerticalAlignment="Center">
+                        <Border.RenderTransform>
+                            <RotateTransform Angle="-7" />
+                        </Border.RenderTransform>
+                        <StackPanel Spacing="1">
+                            <TextBlock HorizontalAlignment="Center"
+                                       FontSize="10"
+                                       Foreground="#9A7F55"
+                                       Text="档案统计自" />
+                            <TextBlock HorizontalAlignment="Center"
+                                       FontSize="13"
+                                       FontWeight="Bold"
+                                       Foreground="#D8B98A"
+                                       Text="{Binding StampText}" />
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </Border>
+
+            <!--  ═══ 分池统计：一个追踪类型一格 ═══  -->
+            <ItemsControl Padding="0" ItemsSource="{Binding Stats}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <WrapPanel />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="pages:ShareTypeStat">
+                        <Border Width="{Binding CardWidth}"
+                                Margin="0,0,8,0"
+                                Padding="12,12"
+                                CornerRadius="12"
+                                Background="#151B24">
+                            <StackPanel Spacing="5">
+                                <TextBlock HorizontalAlignment="Center"
+                                           FontSize="12"
+                                           Foreground="#93A0B4"
+                                           Text="{Binding Label}" />
+                                <TextBlock HorizontalAlignment="Center"
+                                           FontSize="24"
+                                           FontWeight="Bold"
+                                           Foreground="#F1F5F9"
+                                           Text="{Binding PullsText}" />
+                                <Grid Margin="0,3,0,0" ColumnDefinitions="*,*">
+                                    <StackPanel Grid.Column="0" Spacing="2">
+                                        <StackPanel HorizontalAlignment="Center"
+                                                    Orientation="Horizontal"
+                                                    Spacing="3">
+                                            <TextBlock FontSize="15"
+                                                       FontWeight="Bold"
+                                                       Foreground="#F1F5F9"
+                                                       Text="{Binding GoldText}" />
+                                            <TextBlock FontSize="15"
+                                                       Foreground="#475569"
+                                                       IsVisible="{Binding HasOff}"
+                                                       Text="/" />
+                                            <TextBlock FontSize="15"
+                                                       FontWeight="Bold"
+                                                       Foreground="#F87171"
+                                                       IsVisible="{Binding HasOff}"
+                                                       Text="{Binding OffText}" />
+                                        </StackPanel>
+                                        <TextBlock HorizontalAlignment="Center"
+                                                   FontSize="10"
+                                                   Foreground="#64748B"
+                                                   Text="{Binding CountLabel}" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" Spacing="2">
+                                        <TextBlock HorizontalAlignment="Center"
+                                                   FontSize="15"
+                                                   FontWeight="Bold"
+                                                   Foreground="#F1F5F9"
+                                                   Text="{Binding AvgText}" />
+                                        <TextBlock HorizontalAlignment="Center"
+                                                   FontSize="10"
+                                                   Foreground="#64748B"
+                                                   Text="平均出抽" />
+                                    </StackPanel>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <!--  ═══ 成就胶囊 ═══  -->
+            <ItemsControl Padding="0" ItemsSource="{Binding Achievements}" IsVisible="{Binding HasAchievements}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <WrapPanel />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Border Margin="0,0,8,2"
+                                Padding="10,4"
+                                CornerRadius="9"
+                                Background="#142E28"
+                                BorderThickness="1"
+                                BorderBrush="#1E7A5E">
+                            <TextBlock FontSize="12"
+                                       FontWeight="SemiBold"
+                                       Foreground="#3FD9A0"
+                                       Text="{Binding}" />
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <!--  ═══ 出金记录标题 ═══  -->
+            <Grid Margin="2,2,2,0"
+                  ColumnDefinitions="*,Auto"
+                  IsVisible="{Binding HasPools}">
+                <TextBlock Grid.Column="0"
+                           FontSize="16"
+                           FontWeight="Bold"
+                           Foreground="#F1F5F9"
+                           Text="出金记录" />
+                <TextBlock Grid.Column="1"
+                           VerticalAlignment="Bottom"
+                           FontSize="11"
+                           Foreground="#64748B"
+                           Text="{Binding SectionTitle}" />
+            </Grid>
+
+            <!--  ═══ 保底水位 ═══  -->
+            <ItemsControl Padding="0" ItemsSource="{Binding PityCells}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <WrapPanel />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="pages:SharePityCell">
+                        <Border Width="{Binding CardWidth}"
+                                Margin="0,0,8,0"
+                                Padding="12,10"
+                                CornerRadius="12"
+                                Background="#151B24">
+                            <StackPanel Spacing="7">
+                                <Grid ColumnDefinitions="*,Auto">
+                                    <TextBlock FontSize="11"
+                                               Foreground="#93A0B4"
+                                               Text="{Binding Label}" />
+                                    <TextBlock Grid.Column="1"
+                                               FontSize="12"
+                                               FontWeight="Bold"
+                                               Foreground="#F1F5F9"
+                                               Text="{Binding ValueText}" />
+                                </Grid>
+                                <Panel Height="8">
+                                    <Border Background="#232C38" CornerRadius="4" />
+                                    <Border Width="{Binding BarWidth}"
+                                            HorizontalAlignment="Left"
+                                            CornerRadius="4"
+                                            Background="{Binding Fill}" />
+                                </Panel>
+                                <TextBlock FontSize="10"
+                                           Foreground="{Binding HintBrush}"
+                                           Text="{Binding HintText}"
+                                           TextTrimming="CharacterEllipsis" />
+                            </StackPanel>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <!--  ═══ 卡池块：池名 + 日期 + 抽数徽章 + 金头像行 + 每条出金 ═══  -->
+            <ItemsControl Padding="0" ItemsSource="{Binding Pools}" IsVisible="{Binding HasPools}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="pages:SharePoolBlock">
+                        <Border Margin="0,0,0,12"
+                                Padding="14"
+                                CornerRadius="14"
+                                Background="#151B24">
+                            <StackPanel Spacing="10">
+
+                                <Grid ColumnDefinitions="Auto,Auto,*,Auto">
+                                    <TextBlock FontSize="17"
+                                               FontWeight="Bold"
+                                               Foreground="#F1F5F9"
+                                               Text="{Binding Title}" />
+                                    <TextBlock Grid.Column="1"
+                                               Margin="8,0,0,3"
+                                               VerticalAlignment="Bottom"
+                                               FontSize="11"
+                                               Foreground="#64748B"
+                                               Text="{Binding RangeText}" />
+                                    <Border Grid.Column="3"
+                                            Padding="9,3"
+                                            CornerRadius="8"
+                                            VerticalAlignment="Center"
+                                            Background="#2E6BE6">
+                                        <TextBlock FontSize="12"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="White"
+                                                   Text="{Binding TotalText}" />
+                                    </Border>
+                                </Grid>
+
+                                <!--  该池出过的狂头像行  -->
+                                <ItemsControl Padding="0" ItemsSource="{Binding Heads}" IsVisible="{Binding HasHeads}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <WrapPanel />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="pages:ShareAvatar">
+                                            <Border Width="40"
+                                                    Height="40"
+                                                    Margin="0,0,6,6"
+                                                    CornerRadius="9"
+                                                    ClipToBounds="True"
+                                                    Background="{Binding Fill}"
+                                                    BorderThickness="1.5"
+                                                    BorderBrush="{Binding Brush}">
+                                                <Panel>
+                                                    <Image Source="{Binding Image}"
+                                                           Stretch="UniformToFill"
+                                                           IsVisible="{Binding HasImage}" />
+                                                    <TextBlock HorizontalAlignment="Center"
+                                                               VerticalAlignment="Center"
+                                                               FontSize="16"
+                                                               FontWeight="Bold"
+                                                               Foreground="White"
+                                                               IsVisible="{Binding !HasImage}"
+                                                               Text="{Binding Initial}" />
+                                                </Panel>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+
+                                <!--  出金流：一条 = 头像 + 抽数条 + 同批小头像  -->
+                                <ItemsControl Padding="0" ItemsSource="{Binding Rows}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="pages:SharePullRow">
+                                            <StackPanel Margin="0,0,0,12" Spacing="6">
+                                                <!--  十连双金：一个批次只标第一次  -->
+                                                <Border Margin="68,0,0,0"
+                                                        HorizontalAlignment="Left"
+                                                        Padding="8,2"
+                                                        CornerRadius="7"
+                                                        Background="#142E28"
+                                                        BorderThickness="1"
+                                                        BorderBrush="#1E7A5E"
+                                                        IsVisible="{Binding HasBatchLabel}">
+                                                    <TextBlock FontSize="11"
+                                                               FontWeight="SemiBold"
+                                                               Foreground="#3FD9A0"
+                                                               Text="{Binding BatchLabel}" />
+                                                </Border>
+
+                                                <Grid ColumnDefinitions="58,*">
+                                                    <StackPanel Grid.Column="0" Spacing="4">
+                                                        <Panel Width="58" Height="58">
+                                                            <Border CornerRadius="10"
+                                                                    ClipToBounds="True"
+                                                                    Background="{Binding Fill}"
+                                                                    BorderThickness="1.5"
+                                                                    BorderBrush="{Binding Brush}">
+                                                                <Panel>
+                                                                    <Image Source="{Binding Image}"
+                                                                           Stretch="UniformToFill"
+                                                                           IsVisible="{Binding HasImage}" />
+                                                                    <TextBlock HorizontalAlignment="Center"
+                                                                               VerticalAlignment="Center"
+                                                                               FontSize="22"
+                                                                               FontWeight="Bold"
+                                                                               Foreground="White"
+                                                                               IsVisible="{Binding !HasImage}"
+                                                                               Text="{Binding Initial}" />
+                                                                </Panel>
+                                                            </Border>
+                                                            <!--  歪：钉在头像右上角  -->
+                                                            <Border Margin="0,-4,-4,0"
+                                                                    HorizontalAlignment="Right"
+                                                                    VerticalAlignment="Top"
+                                                                    Padding="5,1"
+                                                                    CornerRadius="6"
+                                                                    Background="#D9E11D48"
+                                                                    IsVisible="{Binding IsOffBanner}">
+                                                                <TextBlock FontSize="10"
+                                                                           FontWeight="Bold"
+                                                                           Foreground="White"
+                                                                           Text="歪" />
+                                                            </Border>
+                                                        </Panel>
+                                                        <TextBlock HorizontalAlignment="Center"
+                                                                   MaxWidth="58"
+                                                                   FontSize="11"
+                                                                   Foreground="#93A0B4"
+                                                                   TextTrimming="CharacterEllipsis"
+                                                                   Text="{Binding Name}" />
+                                                    </StackPanel>
+
+                                                    <StackPanel Grid.Column="1"
+                                                                Margin="10,0,0,0"
+                                                                Spacing="6">
+                                                        <Panel Height="34">
+                                                            <!--  抽数条：宽度按抽数比例，颜色分欧/正常/保底三档  -->
+                                                            <Border Width="{Binding BarWidth}"
+                                                                    HorizontalAlignment="Left"
+                                                                    CornerRadius="8"
+                                                                    ClipToBounds="True"
+                                                                    Background="{Binding BarBrush}">
+                                                                <Panel>
+                                                                    <Border Background="{x:Static pages:SharePalette.StripeBrush}"
+                                                                            IsHitTestVisible="False"
+                                                                            IsVisible="{Binding Striped}" />
+                                                                    <Grid Margin="12,0,10,0" ColumnDefinitions="*,Auto">
+                                                                        <TextBlock VerticalAlignment="Center"
+                                                                                   FontSize="14"
+                                                                                   FontWeight="Bold"
+                                                                                   Foreground="White"
+                                                                                   Text="{Binding PityText}" />
+                                                                        <TextBlock Grid.Column="1"
+                                                                                   VerticalAlignment="Center"
+                                                                                   FontSize="11"
+                                                                                   Foreground="#B3FFFFFF"
+                                                                                   Text="{Binding DateText}" />
+                                                                    </Grid>
+                                                                </Panel>
+                                                            </Border>
+                                                            <!--  状态标签：超欧 / 大保底  -->
+                                                            <Border Margin="{Binding BadgeMargin}"
+                                                                    HorizontalAlignment="Left"
+                                                                    VerticalAlignment="Center"
+                                                                    Padding="8,3"
+                                                                    CornerRadius="7"
+                                                                    Background="{Binding BadgeBackground}"
+                                                                    BorderThickness="1"
+                                                                    BorderBrush="{Binding BadgeStroke}"
+                                                                    IsVisible="{Binding HasBadge}">
+                                                                <TextBlock FontSize="11"
+                                                                           FontWeight="SemiBold"
+                                                                           Foreground="{Binding BadgeForeground}"
+                                                                           Text="{Binding BadgeText}" />
+                                                            </Border>
+                                                        </Panel>
+
+                                                        <!--  同批其它结果（一发十连里的其余 9 抽）  -->
+                                                        <ItemsControl Padding="0" ItemsSource="{Binding Batch}" IsVisible="{Binding HasBatch}">
+                                                            <ItemsControl.ItemsPanel>
+                                                                <ItemsPanelTemplate>
+                                                                    <WrapPanel />
+                                                                </ItemsPanelTemplate>
+                                                            </ItemsControl.ItemsPanel>
+                                                            <ItemsControl.ItemTemplate>
+                                                                <DataTemplate x:DataType="pages:ShareAvatar">
+                                                                    <Border Width="24"
+                                                                            Height="24"
+                                                                            Margin="0,0,4,4"
+                                                                            CornerRadius="6"
+                                                                            ClipToBounds="True"
+                                                                            Background="{Binding Fill}"
+                                                                            BorderThickness="1"
+                                                                            BorderBrush="{Binding Brush}">
+                                                                        <Panel>
+                                                                            <Image Source="{Binding Image}"
+                                                                                   Stretch="UniformToFill"
+                                                                                   IsVisible="{Binding HasImage}" />
+                                                                            <TextBlock HorizontalAlignment="Center"
+                                                                                       VerticalAlignment="Center"
+                                                                                       FontSize="11"
+                                                                                       FontWeight="Bold"
+                                                                                       Foreground="White"
+                                                                                       IsVisible="{Binding !HasImage}"
+                                                                                       Text="{Binding Initial}" />
+                                                                        </Panel>
+                                                                    </Border>
+                                                                </DataTemplate>
+                                                            </ItemsControl.ItemTemplate>
+                                                        </ItemsControl>
+                                                    </StackPanel>
+                                                </Grid>
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <TextBlock Margin="0,0,0,2"
+                       HorizontalAlignment="Center"
+                       FontSize="10"
+                       Foreground="#4B5563"
+                       IsVisible="{Binding HasPools}"
+                       Text="{Binding FooterText}" />
+        </StackPanel>
+    </Border>
+</UserControl>

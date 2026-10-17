@@ -31,7 +31,7 @@ MFAAvalonia 没有"资源侧声明自定义页面"的机制，任何界面都必
 - 路径基准：MFA 的 `AppPaths.DataRoot`（= exe 所在目录 = MBCCtools 项目根）。页面里用 `Path.Combine(AppPaths.DataRoot, "record", ...)`，不要写绝对路径。
 - 写入约定：agent 先写临时文件再 `os.replace`（页面随时可能正在读）；带上 `collected_at` 采集时间，页面显示"多久前"，让数据陈旧可见；单个数据源失败不要丢整份文件，失败原因记进 `errors`。
 - 页面只读文件、不联网：**抓取/解析规则变了（wiki 改模板等）只需更新 MBCCtools 的 agent，不用重发 GUI**。把解析塞进 C# 会让每次改版都要走 publish → 部署 → 用户重下。
-- 抽卡记录的时间口径（2026-10-10）：单个 jsonl 内部是「`index` 升序 = 游戏列表顺序 = 最新在前」，但**跨文件不是全局时间序**（页面按文件 mtime 拼接读取，各追踪类型一个文件）。凡是要按时间呈现的地方自己排 `cells[0]`，且必须**稳定排序**——同一秒内可能有多条（十连/连抽共享时间戳），先后只能靠行序定。「狂级出金记录」就是这么排的，别退回成"行序反转"（那样卡片会按追踪类型分组、最新一次出金被埋在中段）。时间戳有三种脏形态（`… 01:03:57` / 丢分隔符 `…0201:03:57` / 分隔符被 OCR 认成点 `….01:03:57`），统一由 `GachaRecordViewModel.TimeFix` 归一化后再比字符串。
+- 抽卡记录的时间口径（2026-10-10）：单个 jsonl 内部是「`index` 升序 = 游戏列表顺序 = 最新在前」，但**跨文件不是全局时间序**（页面按文件 mtime 拼接读取，各追踪类型一个文件）。凡是要按时间呈现的地方自己排 `cells[0]`，且必须**稳定排序**——同一秒内可能有多条（十连/连抽共享时间戳），先后只能靠行序定。「狂级出金记录」就是这么排的，别退回成"行序反转"（那样卡片会按追踪类型分组、最新一次出金被埋在中段）。时间戳有三种脏形态（`… 01:03:57` / 丢分隔符 `…0201:03:57` / 分隔符被 OCR 认成点 `….01:03:57`），统一由 `GachaRecordViewModel.TimeFix` 归一化后再比字符串。「同一秒 = 同一发」这个性质别浪费：晒卡分享图拿 `(追踪类型, 卡池, 时间)` 把十连的 10 行重建成一个批次（判断「十连双金」、列同批小头像）。
 - 触发约定（2026-09-29 起）：GUI 启动时 `Helper/ActivityRefreshLauncher` 会用 `interface.json` 的 `agent.child_exec` 后台拉起一次 `agent/wiki_activity.py`（实测约 1-5 秒；`record/活动.json` 的 `collected_at` 距今 <30 分钟则跳过）。之前只有跑任务（MaaFW 拉起 agent）才会采集，纯开 GUI 看提醒永远是旧数据。GUI 只触发、不解析，抓取规则仍只在 MBCCtools 改。
 - 抽卡页顶栏「更新记录」= 重读 `record/` 下所有 `*.jsonl`（递归，含子目录）并重算全部页签，旁边回显"更新于 HH:mm:ss"；它**不触发采集**（采集仍靠跑「抽卡记录」任务）。读取用 `FileShare.ReadWrite`，因为点刷新常发生在采集任务正追加同一个文件时。
 - 活动临期口径（2026-10-10）：剩余 **<3 天**一律标红（`ActivityPalette.Alert`，`ActivityRow.IsAlerting`；活动名靠 `Classes.alert` 用 x:Static 取同一个红，状态/倒计时/左侧色条走 `StatusBrush`），<24 小时只是状态文字变"即将结束"、颜色不再区分。<3 天口径同时决定开机播报的内容。
@@ -62,6 +62,7 @@ MFAAvalonia 没有"资源侧声明自定义页面"的机制，任何界面都必
 - 提醒/统计这类"随现在时刻变化"的文案，用 `DispatcherTimer` 在页面 `Loaded` 起、`Unloaded` 停（见 `ActivityView.axaml.cs`）。
 - **窗口的 `Opened` 事件抓不住**（2026-10-10 实测）：`App.OnFrameworkInitializationCompleted` 里到 `TrayIconManager.InitializeTrayIcon(...)` 那行时窗口已经 `IsVisible=True`、`Loaded` 也已触发（SukiWindow 显示得比这段代码早），`window.Opened` 挂在后面永远不会回调。想在"程序起来时"做一次事，用 `if (window.IsLoaded) 立刻做; else window.Loaded += ...`，不要只挂 `Opened`。
 - 开机时的 toast 想抓进截图得卡时间：窗口约 5-8 秒才出来、toast 只停 10 秒，`bin/shot-pid.ps1` 自己内部还有 ~2.5 秒的 `MoveWindow`/前台化等待，所以从 `Start-Process` 到截图建议 5-8 秒（见本次验证图 `bin/ref-activity-reminder-toasts.png`、`bin/ref-activity-red-3days.png`）。
+- **「导出晒卡」是独立设计稿，不是页面截图**（2026-10-17 起）：`Views/Pages/GachaShareCard.axaml`（固定 750 逻辑宽的深色卡片）+ `GachaRecordViewModel.BuildShareModel()`（聚合统计/成就/水位/按池出金流）；出图在 `GachaShareCard.Render` 里 `RenderTargetBitmap` 整卡渲染，存 `record/导出/晒卡_*.png`。三条必须照做：①**渲染前先把卡片挂进视觉树**（页面 XAML 里那个 0 尺寸的 `ShareCardHost`，或 PageShot share 模式的无头窗口）——纯离屏不挂树时拿不到主题的控件模板，`UserControl`/`ItemsControl` 会排出 0 高度；②量排要 `Measure/Arrange` 跑 3-4 轮并跑 Dispatcher 队列，条目容器才生成齐，**最后一轮量排之后立即渲染**（挂树时父级布局会按自己的约束重排它）；③卡片全部颜色/字号内联（不引用主题令牌），所以出图与明暗主题逐像素一致（2026-10-17 实测）。每张统计卡/水位卡的宽度在 `BuildShareModel` 里按「内容宽 / 列数 - 10」算，别贴着内容宽算满，否则浮点误差会让最后一张换行。
 
 ## 5. 构建与部署
 
@@ -80,8 +81,19 @@ MFAAvalonia 没有"资源侧声明自定义页面"的机制，任何界面都必
 
 ## 6. 验证（没有单测、没有 CI）
 
-- 视觉核对：`powershell -ExecutionPolicy Bypass -File bin/shot-pid.ps1 -Id <pid> -Out x.png`。按 **PID** 抓（可能同时开着多个实例，按进程名会抓错），内部用 `PrintWindow`，不要求窗口在前台。**脚本已 DPI 感知（2026-09-29 修复）**：本机显示缩放 125%，DPI 未感知的截图只会截到窗口左边 80%，会把靠右内容误判为"被裁"；另写截图代码务必先 `SetProcessDpiAwarenessContext(PER_MONITOR_AWARE_V2)`，并注意脚本里的 `-Width/-Height` 现在是物理像素（默认 1875×1175 = 1500×940 DIP）。
+- **首选：离屏渲染页面截图（2026-10-15 起）**，`tools/PageShot/pageshot.sh`。它用 Avalonia 的 headless 平台把页面画进 `RenderTargetBitmap`，**全程不创建系统窗口**——不抢前台、不占任务栏、不动鼠标，所以验证界面时不会打断用户。用真实的页面类、真实的 `App.axaml` 资源、真实的数据文件，只是没有窗口。
+  ```bash
+  tools/PageShot/pageshot.sh                    # 抽卡页（默认）→ tools/PageShot/out/ps-gacha.png
+  tools/PageShot/pageshot.sh activity           # 活动页
+  tools/PageShot/pageshot.sh share 1.5          # 「导出晒卡」的分享卡（和点按钮同一条渲染路径）
+  tools/PageShot/pageshot.sh gacha dark 2       # 深色主题、2 倍分辨率
+  tools/PageShot/pageshot.sh -- --width 800 --height 600   # 其余参数原样透传给 PageShot
+  ```
+  位置参数简写是「页面 [主题] [缩放]」，带 `--` 的参数原样透传。默认数据目录是 `G:/MBCCtools工作区`（真实数据），用 `--data-root` 覆盖；出图落在 `tools/PageShot/out/`（已 gitignore）。
+  工具整个装在 `tools/PageShot/` 一个目录里，**自包含**：`pageshot.sh`（入口）+ `PageShot.csproj` + `Program.cs` + `README.md`；删掉这个目录就完全干净。fork 自用，**不随发布包分发**。两个必须照做的点：①**页面自己不带背景**，真实窗口里那层渐变底色是 `SukiWindow` 的模板画的，所以宿主要把页面套进 `SukiMainHost`（`BackgroundStyle = SukiBackgroundStyle.GradientSoft`，与 `RootView.axaml` 一致），否则卡片之间的空隙是透明的；②`ItemsControl` 的条目容器在绑定落到列表之后才生成，量一次布局抓到的会是空壳，要 `Measure/Arrange/UpdateLayout` + 跑 Dispatcher 队列来几轮。新增页面时在 `PageShotApp.CreatePage` 里补一行。
+- 需要看**真实窗口**（阴影、圆角、`SukiWindow` 外壳、toast 弹出位置）时才回到 `shot-pid.ps1`：`powershell -ExecutionPolicy Bypass -File bin/shot-pid.ps1 -Id <pid> -Out x.png`。按 **PID** 抓（可能同时开着多个实例，按进程名会抓错），内部用 `PrintWindow`，不要求窗口在前台。**脚本已 DPI 感知（2026-09-29 修复）**：本机显示缩放 125%，DPI 未感知的截图只会截到窗口左边 80%，会把靠右内容误判为"被裁"；另写截图代码务必先 `SetProcessDpiAwarenessContext(PER_MONITOR_AWARE_V2)`，并注意脚本里的 `-Width/-Height` 现在是物理像素（默认 1875×1175 = 1500×940 DIP）。
 - ⚠ **合成点击不可靠，别把"点一下再看"当验证手段**：这台机器上 `SetCursorPos` 的实际落点会被别的东西带偏、`SetForegroundWindow` 常被系统拒。`shot-pid.ps1 -ClickX -ClickY -PostClick`（向 WndProc 直接投递鼠标消息）实测可用，但属于侥幸路径；要看某个侧栏页，宁可临时加一个环境变量开关让启动即选中该项（验完删掉）。（2026-10-10 实测：`-ClickX` 直接用截图里的 x；`-ClickY` 要比目标行在截图里的 y 大 44，差的是标题栏高度，不补就会点到上一行。那类临时开关（如本次用过的 `MFA_START_PAGE`，验完已从代码里删掉）偶发失效：启动慢时 1.5 秒内侧栏还没就绪，补一次点击即可。）
+- ⚠ **别靠肉眼看缩略图判断"页面是不是空的"**：预览会被缩放，细节糊成一片很容易误判。判定"有没有内容"要直接读像素——`python` 解 PNG 后按行统计与背景色不同的像素数，或者干脆裁一块出来看。
 - 数据先脱离 GUI 验：数据文件用 `python -c` 读出来核对字段与排序，比截图快得多。
 - `publish/` 那份副本可以直接跑起来当沙箱验界面（它自带 `config/`、`interface.json`、`resource/`），但注意两件事：①它是独立数据目录，所以要么往 `publish/record/` 灌测试数据、要么它自己的 `record/` 就是旧数据；②它会照自己那份 config 自动执行「启动前」任务并连真实模拟器（会碰到正在跑的游戏画面）——只想看界面，先把 `publish/config/instances/default.json` 里 `AdbDevice.AdbPath/AdbSerial` 清空，验完还原。
 - 拿 GUI 里的真实数据验「3 天内结束」很别扭（活动日历上通常没有这么近的）：按 §2 的契约在 `publish/record/活动.json` 造几条临期活动最快，验完删掉即可。

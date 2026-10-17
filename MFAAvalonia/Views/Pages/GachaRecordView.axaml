@@ -1,6 +1,6 @@
 <UserControl
-    d:DesignHeight="760"
-    d:DesignWidth="1120"
+    d:DesignHeight="900"
+    d:DesignWidth="1250"
     mc:Ignorable="d"
     x:Class="MFAAvalonia.Views.Pages.GachaRecordView"
     x:DataType="pages:GachaRecordViewModel"
@@ -9,11 +9,19 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:pages="clr-namespace:MFAAvalonia.ViewModels.Pages"
     xmlns:fluentIcon="clr-namespace:FluentIcons.Avalonia.Fluent;assembly=FluentIcons.Avalonia.Fluent"
+    xmlns:conv="clr-namespace:MFAAvalonia.Helper.Converters"
+    xmlns:suki="https://github.com/kikipoulet/SukiUI"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
     <Design.DataContext>
         <pages:GachaRecordViewModel />
     </Design.DataContext>
+
+    <UserControl.Resources>
+        <!--  出货抽数 → 欧非三档 / 垫抽水位 → 保底三档，纯 XAML 视觉状态的唯一来源  -->
+        <conv:PityToBrushConverter x:Key="PityBrush" />
+        <conv:PityProgressBrushConverter x:Key="PityProgressBrush" />
+    </UserControl.Resources>
 
     <UserControl.Styles>
         <Style Selector="Border.Card">
@@ -21,34 +29,32 @@
             <Setter Property="Padding" Value="14" />
             <Setter Property="Background" Value="{DynamicResource SukiCardBackground}" />
         </Style>
-        <Style Selector="TextBlock.StatValue">
-            <Setter Property="FontSize" Value="22" />
-            <Setter Property="FontWeight" Value="Bold" />
-            <Setter Property="Foreground" Value="{DynamicResource SukiText}" />
-        </Style>
-        <Style Selector="TextBlock.StatLabel">
-            <Setter Property="FontSize" Value="12" />
-            <Setter Property="Foreground" Value="{DynamicResource SukiLowText}" />
-        </Style>
         <Style Selector="TextBlock.SectionTitle">
             <Setter Property="FontSize" Value="15" />
             <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="Foreground" Value="{DynamicResource SukiText}" />
-            <Setter Property="Margin" Value="0,0,0,8" />
         </Style>
-        <Style Selector="TextBlock.FieldLabel">
-            <Setter Property="VerticalAlignment" Value="Center" />
+        <Style Selector="TextBlock.Hint">
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Foreground" Value="{DynamicResource SukiLowText}" />
+        </Style>
+        <Style Selector="TextBlock.KpiValue">
+            <Setter Property="FontSize" Value="27" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="Foreground" Value="{DynamicResource SukiText}" />
+        </Style>
+        <Style Selector="TextBlock.KpiLabel">
+            <Setter Property="FontSize" Value="12" />
             <Setter Property="Foreground" Value="{DynamicResource SukiLowText}" />
         </Style>
 
-        <!--  卡池类型胶囊：参考鸣潮助手抽卡分析页的顶部胶囊行，替代原左侧卡池栏。
-              模板里的 ContentPresenter 必须强制透明并占用 PART_ContentPresenter 名字：
+        <!--  胶囊行：顶栏筛选用。模板里的 ContentPresenter 必须强制透明并占用 PART_ContentPresenter 名字：
               主题（Fluent/SukiUI）会在选中态往内容层画深色底框，不压掉就会在胶囊里露出一个方形色块。  -->
-        <Style Selector="ListBox.PoolPills ListBoxItem">
-            <Setter Property="FontSize" Value="13" />
-            <Setter Property="Padding" Value="12,5" />
-            <Setter Property="Margin" Value="0,0,8,6" />
-            <Setter Property="CornerRadius" Value="14" />
+        <Style Selector="ListBox.Pills ListBoxItem">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Padding" Value="10,4" />
+            <Setter Property="Margin" Value="0,0,6,0" />
+            <Setter Property="CornerRadius" Value="12" />
             <Setter Property="Background" Value="{DynamicResource SukiPrimaryColor15}" />
             <Setter Property="Foreground" Value="{DynamicResource SukiText}" />
             <Setter Property="Template">
@@ -69,406 +75,1124 @@
                 </ControlTemplate>
             </Setter>
         </Style>
-        <Style Selector="ListBox.PoolPills ListBoxItem /template/ ContentPresenter">
+        <Style Selector="ListBox.Pills ListBoxItem /template/ ContentPresenter">
             <Setter Property="Background" Value="Transparent" />
         </Style>
-        <Style Selector="ListBox.PoolPills ListBoxItem:pointerover">
+        <!--  SukiUI 的 ListBoxItem 主题里有一条「ListBoxItem:selected > TextBlock → Foreground=SukiPrimaryColor」，
+              内容为字符串时那条会命中，文字就跟选中态的 SukiPrimaryColor 底同色、整颗胶囊看起来是空的。
+              这里用带 .Pills 的更高特异性把选中态文字再钉回白色（旧页面的胶囊内容包在 StackPanel 里才躲过这一条）。  -->
+        <Style Selector="ListBox.Pills ListBoxItem:selected > TextBlock">
+            <Setter Property="Foreground" Value="White" />
+        </Style>
+        <Style Selector="ListBox.Pills ListBoxItem:pointerover">
             <Setter Property="Background" Value="{DynamicResource SukiPrimaryColor25}" />
         </Style>
-        <Style Selector="ListBox.PoolPills ListBoxItem:selected">
+        <Style Selector="ListBox.Pills ListBoxItem:selected">
             <Setter Property="Background" Value="{DynamicResource SukiPrimaryColor}" />
             <Setter Property="Foreground" Value="White" />
         </Style>
+
+        <!--  流水列表：只要行，不要选中态/悬浮态那套底框，靠行首色条区分稀有度  -->
+        <Style Selector="ListBox.Timeline ListBoxItem">
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Margin" Value="0" />
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Template">
+                <ControlTemplate>
+                    <Border Background="{TemplateBinding Background}"
+                            CornerRadius="{TemplateBinding CornerRadius}"
+                            Padding="{TemplateBinding Padding}">
+                        <ContentPresenter Name="PART_ContentPresenter"
+                                          Content="{TemplateBinding Content}"
+                                          ContentTemplate="{TemplateBinding ContentTemplate}"
+                                          Background="Transparent" />
+                    </Border>
+                </ControlTemplate>
+            </Setter>
+        </Style>
+        <Style Selector="ListBox.Timeline ListBoxItem:pointerover /template/ Border">
+            <Setter Property="Background" Value="{DynamicResource SukiPrimaryColor15}" />
+        </Style>
+        <Style Selector="ListBox.Timeline ListBoxItem:selected /template/ Border">
+            <Setter Property="Background" Value="{DynamicResource SukiPrimaryColor25}" />
+        </Style>
+
+        <!--  勋章墙与图鉴卡片可点按钮样式：无 chrome 无边距  -->
+        <Style Selector="Button.BadgeTap">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="CornerRadius" Value="10" />
+        </Style>
+        <Style Selector="Button.BadgeTap:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+
+        <Style Selector="Button.CodexTap">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="CornerRadius" Value="10" />
+        </Style>
+        <Style Selector="Button.CodexTap:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+
+        <!--  狂厄勋章：外框颜色跟出货抽数走（见 PityBrush），所以抽数胶囊也用同一个转换器取色  -->
+        <Style Selector="Border.BadgePill">
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Padding" Value="6,1" />
+        </Style>
     </UserControl.Styles>
 
-    <Grid Margin="16" RowDefinitions="Auto,*">
+    <Grid Margin="14,10" RowDefinitions="Auto,*">
 
-        <!--  顶部卡池切换：横排胶囊。卡池选择移到顶部后，
-              横向空间全部还给内容区（原来是左侧 210 栏 + 右侧三页签抢宽度）。
-              右侧固定放「更新记录」：重读 record/ 下的 jsonl 并刷新本页，三个页签下都能点到。  -->
-        <Border Grid.Row="0" Classes="Card" Margin="0,0,0,12" Padding="10,8,10,2">
-            <Grid ColumnDefinitions="Auto,*,Auto">
-                <TextBlock Grid.Column="0" Classes="SectionTitle" Text="追踪类型"
-                           Margin="4,0,12,6" VerticalAlignment="Center" />
-                <ListBox Grid.Column="1" Classes="PoolPills"
-                         ItemsSource="{Binding Pools}"
-                         SelectedItem="{Binding SelectedPoolItem, Mode=TwoWay}"
-                         Background="Transparent" BorderThickness="0">
+        <!--  ═══ Row 0 顶部操作与账号栏 ═══  -->
+        <suki:GlassCard Grid.Row="0"
+                        Margin="0,0,0,10"
+                        Padding="14,10"
+                        CornerRadius="12"
+                        IsAnimated="False">
+            <Grid ColumnDefinitions="Auto,*,Auto,Auto">
+
+                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+                    <TextBlock FontSize="19"
+                               FontWeight="Bold"
+                               Foreground="{DynamicResource SukiText}"
+                               Text="MBCC 档案中心" />
+                    <StackPanel VerticalAlignment="Center" Spacing="1">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <TextBlock Classes="Hint" Text="{Binding LastRefreshText}" />
+                            <TextBlock Classes="Hint" Text="{Binding DataAgeText}" />
+                        </StackPanel>
+                        <TextBlock Classes="Hint" Text="{Binding StatusText}" TextTrimming="CharacterEllipsis" MaxWidth="360" />
+                    </StackPanel>
+                </StackPanel>
+
+                <!--  视图分段控制器：仪表盘 / 表格。原来这里是 TabControl 的页签条，独占一整行、右边 90% 是空白  -->
+                <ListBox Grid.Column="1"
+                         Classes="Pills"
+                         Margin="18,0"
+                         MinWidth="150"
+                         HorizontalAlignment="Left"
+                         VerticalAlignment="Center"
+                         Background="Transparent"
+                         BorderThickness="0"
+                         ItemsSource="{Binding Sections}"
+                         SelectedItem="{Binding SelectedSection, Mode=TwoWay}">
                     <ListBox.ItemsPanel>
                         <ItemsPanelTemplate>
                             <WrapPanel />
                         </ItemsPanelTemplate>
                     </ListBox.ItemsPanel>
-                    <ListBox.ItemTemplate>
-                        <DataTemplate x:DataType="pages:PoolItem">
-                            <!--  抽数跟在池名后面、用同一前景色的低透明度，
-                                  这样选中（实心底）时颜色跟着走，不用单独给徽章配色。  -->
-                            <StackPanel Orientation="Horizontal" Spacing="6">
-                                <TextBlock Text="{Binding Name}" VerticalAlignment="Center"
-                                           TextTrimming="CharacterEllipsis" MaxWidth="200" />
-                                <TextBlock Text="{Binding Count}" FontSize="11" Opacity="0.7"
-                                           VerticalAlignment="Center" />
-                            </StackPanel>
-                        </DataTemplate>
-                    </ListBox.ItemTemplate>
                 </ListBox>
-                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="10"
-                            Margin="12,0,4,6" VerticalAlignment="Center">
-                    <TextBlock Classes="StatLabel" Text="{Binding LastRefreshText}" VerticalAlignment="Center" />
-                    <Button Content="更新记录" Command="{Binding LoadCommand}"
-                            ToolTip.Tip="重新读取 record/ 下的抽卡记录并刷新本页（采集新记录请运行「抽卡记录」任务）" />
+
+                <StackPanel Grid.Column="2"
+                            Margin="8,0,14,0"
+                            Orientation="Horizontal"
+                            Spacing="8"
+                            HorizontalAlignment="Right"
+                            VerticalAlignment="Center">
+                    <TextBlock Classes="Hint" Text="档案" VerticalAlignment="Center" />
+                    <ComboBox ItemsSource="{Binding Profiles}"
+                              SelectedItem="{Binding SelectedProfile, Mode=TwoWay}"
+                              MinWidth="150"
+                              VerticalAlignment="Center"
+                              ToolTip.Tip="按 record/抽卡记录/ 下的子目录分档案（一个目录一个账号）。没有子目录时只有「默认档案」">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate x:DataType="pages:ArchiveProfile">
+                                <TextBlock Text="{Binding Display}" />
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
+
+                    <!--  采集状态胶囊：跟着活动实例的任务队列走（跑没跑任务），不联网、不读日志  -->
+                    <Border Padding="10,3"
+                            CornerRadius="11"
+                            VerticalAlignment="Center"
+                            ToolTip.Tip="看当前活动实例的任务队列：任务跑起来就是「任务运行中」">
+                        <Border.Styles>
+                            <Style Selector="Border">
+                                <Setter Property="Background" Value="{DynamicResource SukiPrimaryColor15}" />
+                            </Style>
+                        </Border.Styles>
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <Ellipse Width="7" Height="7" VerticalAlignment="Center">
+                                <Ellipse.Styles>
+                                    <Style Selector="Ellipse">
+                                        <Setter Property="Fill" Value="{DynamicResource SukiLowText}" />
+                                    </Style>
+                                </Ellipse.Styles>
+                            </Ellipse>
+                            <TextBlock FontSize="12" Text="{Binding CollectStatusText}" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
+
+                <WrapPanel Grid.Column="3" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                    <!--  三个"导出/分享"用 Outlined（透明底 + 细描边）压低权重：
+                          顶栏只留「开始自动采集」一个实心蓝，焦点不会被平铺按钮抢走。
+                          没做成下拉菜单是因为弹出层是独立窗口，验证它必须真的抢占前台点击，
+                          而这个项目里的菜单惯例本来就是 Click 处理而不是菜单项绑命令。  -->
+                    <Button Classes="Outlined Icon"
+                            Margin="0,0,8,0"
+                            Command="{Binding CaptureLongImageCommand}"
+                            ToolTip.Tip="导出晒卡：按当前档案生成一张分享卡（分池统计 / 成就 / 保底水位 / 各池出金记录），存到 record/导出/">
+                        <fluentIcon:FluentIcon Icon="Image" IconSize="Size20" IconVariant="Regular" />
+                    </Button>
+                    <Button Classes="Outlined Icon"
+                            Margin="0,0,8,0"
+                            Command="{Binding ExportJsonCommand}"
+                            ToolTip.Tip="导出 JSON：当前档案的全部明细写到 record/导出/（写成 .json 而不是 .jsonl，不会被本页当成采集数据读回来）">
+                        <fluentIcon:FluentIcon Icon="Document" IconSize="Size20" IconVariant="Regular" />
+                    </Button>
+                    <Button Classes="Outlined Icon"
+                            Margin="0,0,8,0"
+                            Command="{Binding ExportCsvCommand}"
+                            ToolTip.Tip="导出 CSV：当前档案的全部明细写到 record/导出/，带 BOM，Excel 双击打开不乱码">
+                        <fluentIcon:FluentIcon Icon="DocumentTable" IconSize="Size20" IconVariant="Regular" />
+                    </Button>
+
+                    <Button Classes="Outlined Icon"
+                            Command="{Binding LoadCommand}"
+                            ToolTip.Tip="重新读取 record/ 下的抽卡记录并刷新本页（采集新记录请点「开始采集」或跑「抽卡记录」任务）">
+                        <fluentIcon:FluentIcon Icon="ArrowClockwise" IconSize="Size20" IconVariant="Regular" />
+                    </Button>
+                </WrapPanel>
             </Grid>
-        </Border>
+        </suki:GlassCard>
 
-        <!-- 三页签 -->
-        <TabControl Grid.Row="1" Padding="0">
-            <TabItem Header="概览">
-                <ScrollViewer Padding="4,8">
-                    <StackPanel Spacing="14">
-                        <StackPanel Orientation="Horizontal" Spacing="8">
-                            <TextBlock Classes="SectionTitle" Text="稀有度分布" Margin="0" VerticalAlignment="Center" />
-                            <TextBlock Classes="StatLabel" Text="{Binding ScopeLabel}" VerticalAlignment="Center" />
-                        </StackPanel>
+            <!--  ═══ 仪表盘：分池档案 + 逮捕流水。与表格互斥显示，由顶栏的分段控制器切换 ═══  -->
+            <Grid Grid.Row="1" IsVisible="{Binding IsDashboard}">
+                <Grid RowDefinitions="Auto,*">
+                    <!--  ═══ KPI 横幅 ═══  -->
+                    <UniformGrid x:Name="KpiBanner" Grid.Row="0" Columns="4" Margin="0,0,0,10">
 
-                        <!-- 占比条 -->
-                        <Border Classes="Card">
-                            <StackPanel Spacing="8">
-                                <Grid ColumnDefinitions="36,*,Auto">
-                                    <TextBlock Grid.Column="0" Text="狂" FontWeight="Bold" Foreground="{DynamicResource Gacha.Rarity.Kuang}" VerticalAlignment="Center" />
-                                    <ProgressBar Grid.Column="1" Minimum="0" Maximum="1" Height="12"
-                                                 Foreground="{DynamicResource Gacha.Rarity.Kuang}" Background="{DynamicResource SukiPrimaryColor5}"
-                                                 Value="{Binding KuangRatio}" VerticalAlignment="Center" />
-                                    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" Margin="8,0,0,0" VerticalAlignment="Center">
-                                        <TextBlock Text="{Binding KuangCount}" FontWeight="Bold" />
-                                        <TextBlock Text="{Binding KuangPctText}" Foreground="{DynamicResource SukiLowText}" />
-                                    </StackPanel>
-                                </Grid>
-                                <Grid ColumnDefinitions="36,*,Auto">
-                                    <TextBlock Grid.Column="0" Text="危" FontWeight="Bold" Foreground="{DynamicResource Gacha.Rarity.Wei}" VerticalAlignment="Center" />
-                                    <ProgressBar Grid.Column="1" Minimum="0" Maximum="1" Height="12"
-                                                 Foreground="{DynamicResource Gacha.Rarity.Wei}" Background="{DynamicResource SukiPrimaryColor5}"
-                                                 Value="{Binding WeiRatio}" VerticalAlignment="Center" />
-                                    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" Margin="8,0,0,0" VerticalAlignment="Center">
-                                        <TextBlock Text="{Binding WeiCount}" FontWeight="Bold" />
-                                        <TextBlock Text="{Binding WeiPctText}" Foreground="{DynamicResource SukiLowText}" />
-                                    </StackPanel>
-                                </Grid>
-                                <Grid ColumnDefinitions="36,*,Auto">
-                                    <TextBlock Grid.Column="0" Text="普" FontWeight="Bold" Foreground="{DynamicResource Gacha.Rarity.Pu}" VerticalAlignment="Center" />
-                                    <ProgressBar Grid.Column="1" Minimum="0" Maximum="1" Height="12"
-                                                 Foreground="{DynamicResource Gacha.Rarity.Pu}" Background="{DynamicResource SukiPrimaryColor5}"
-                                                 Value="{Binding PuRatio}" VerticalAlignment="Center" />
-                                    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" Margin="8,0,0,0" VerticalAlignment="Center">
-                                        <TextBlock Text="{Binding PuCount}" FontWeight="Bold" />
-                                        <TextBlock Text="{Binding PuPctText}" Foreground="{DynamicResource SukiLowText}" />
-                                    </StackPanel>
-                                </Grid>
-                            </StackPanel>
+                        <!--  卡 1：累计逮捕  -->
+                        <Border Classes="Card" Margin="0,0,10,0">
+                                                        <Grid ColumnDefinitions="*,Auto">
+                                <StackPanel Grid.Column="0" Spacing="2">
+                                    <TextBlock Classes="KpiLabel" Text="累计逮捕" />
+                                    <TextBlock Classes="KpiValue" Text="{Binding TotalPulls}" />
+                                    <TextBlock Classes="Hint" Text="{Binding CrystalCostText}" />
+                                </StackPanel>
+                                <!--  右侧不空着：挂「覆盖了多少个卡池」  -->
+                                <TextBlock Grid.Column="1"
+                                           Margin="10,0,0,0"
+                                           VerticalAlignment="Center"
+                                           FontSize="11"
+                                           Foreground="{DynamicResource SukiLowText}"
+                                           Text="{Binding PoolCountText}" />
+                            </Grid>
                         </Border>
 
-                        <!-- 关键指标 -->
-                        <WrapPanel>
-                            <Border Classes="Card" MinWidth="130" Margin="0,0,10,10">
-                                <StackPanel>
-                                    <TextBlock Classes="StatLabel" Text="总抽数" />
-                                    <TextBlock Classes="StatValue" Text="{Binding DisplayCount}" />
+                        <!--  卡 2：狂厄级总数 + 综合出率胶囊  -->
+                        <Border Classes="Card" Margin="0,0,10,0">
+                                                        <Grid ColumnDefinitions="*,Auto">
+                                <StackPanel Grid.Column="0" Spacing="2">
+                                    <TextBlock Classes="KpiLabel" Text="狂厄级总数" />
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <TextBlock Classes="KpiValue"
+                                                   Foreground="{DynamicResource Gacha.Rarity.Kuang}"
+                                                   Text="{Binding KuangTotal}" />
+                                        <Border Classes="BadgePill"
+                                                VerticalAlignment="Center"
+                                                Background="{DynamicResource SukiPrimaryColor15}">
+                                            <TextBlock FontSize="11" Text="{Binding KuangRateText}" VerticalAlignment="Center" />
+                                        </Border>
+                                    </StackPanel>
+                                    <TextBlock Classes="Hint"
+                                               Text="含硬保底的综合出率 · 基础 2%，第 80 抽必出"
+                                               TextTrimming="CharacterEllipsis" />
                                 </StackPanel>
-                            </Border>
-                            <Border Classes="Card" MinWidth="130" Margin="0,0,10,10">
-                                <StackPanel>
-                                    <TextBlock Classes="StatLabel" Text="平均出货抽数(狂)" />
-                                    <TextBlock Classes="StatValue" Text="{Binding AvgPerKuangText}" />
+                                <!--  右侧挂三档占比条：出率一个数字看不出结构  -->
+                                <StackPanel Grid.Column="1"
+                                           Margin="10,0,0,0"
+                                           Width="72"
+                                           Height="8"
+                                           Orientation="Horizontal"
+                                           VerticalAlignment="Center"
+                                           ToolTip.Tip="狂 / 危 / 普 三类占比">
+                                    <Border Width="{Binding KuangBarPixels}" Background="{DynamicResource Gacha.Rarity.Kuang}" />
+                                    <Border Width="{Binding WeiBarPixels}" Background="{DynamicResource Gacha.Rarity.Wei}" />
+                                    <Border Width="{Binding PuBarPixels}" Background="{DynamicResource Gacha.Rarity.Pu}" />
                                 </StackPanel>
-                            </Border>
-                            <Border Classes="Card" MinWidth="120" Margin="0,0,10,10">
-                                <StackPanel>
-                                    <TextBlock Classes="StatLabel" Text="最欧(最少抽出金)" />
-                                    <TextBlock Classes="StatValue" Text="{Binding LuckiestText}"
-                                               Foreground="{DynamicResource SukiSuccessColor}" />
-                                </StackPanel>
-                            </Border>
-                            <Border Classes="Card" MinWidth="120" Margin="0,0,10,10">
-                                <StackPanel>
-                                    <TextBlock Classes="StatLabel" Text="最非(最多抽出金)" />
-                                    <TextBlock Classes="StatValue" Text="{Binding UnluckiestText}"
-                                               Foreground="{DynamicResource SukiDangerColor}" />
-                                </StackPanel>
-                            </Border>
-                            <Border Classes="Card" MinWidth="120" Margin="0,0,10,10">
-                                <StackPanel>
-                                    <TextBlock Classes="StatLabel" Text="距上次狂" />
-                                    <TextBlock Classes="StatValue" Text="{Binding PitySinceKuang}" Foreground="{DynamicResource Gacha.Rarity.Kuang}" />
-                                </StackPanel>
-                            </Border>
-                            <Border Classes="Card" MinWidth="120" Margin="0,0,10,10">
-                                <StackPanel>
-                                    <TextBlock Classes="StatLabel" Text="距上次危" />
-                                    <TextBlock Classes="StatValue" Text="{Binding PitySinceWei}" Foreground="{DynamicResource Gacha.Rarity.Wei}" />
-                                </StackPanel>
-                            </Border>
-                        </WrapPanel>
-
-                        <!-- 保底状态：按活动追踪规则显示。规则 1=每 10 抽必出危或狂；规则 2=50 抽后概率递增、80 抽硬保底。
-                             计数按追踪类型独立（规则 4），所以顶栏选了具体卡池时，这里的数字就是那个卡池的。 -->
-                        <Border Classes="Card">
-                            <StackPanel Spacing="4">
-                                <StackPanel Orientation="Horizontal" Spacing="10">
-                                    <TextBlock Classes="SectionTitle" Text="保底状态" Margin="0" />
-                                    <TextBlock Classes="StatLabel" Text="{Binding PityScopeText}" VerticalAlignment="Center" />
-                                </StackPanel>
-                                <TextBlock FontSize="16" FontWeight="SemiBold" Text="{Binding PityStatusText}"
-                                           Foreground="{DynamicResource Gacha.Rarity.Kuang}" />
-                                <TextBlock Classes="StatLabel" Text="{Binding SoftPityStatusText}" />
-                            </StackPanel>
+                            </Grid>
                         </Border>
 
-                        <!-- 狂级出金记录：距上一个狂第几抽出金（含自身），头像+名字+来源标签+相对长度条。
-                             来源标签 = 该条记录所属追踪类型的短名（活动/统合/定向/常驻/限定），与顶部胶囊一一对应。
-                             按出金时间倒序排（最新在最前）；时间不写在卡片上（挤在头像边上难看），悬停看 ToolTip。 -->
-                        <StackPanel Orientation="Horizontal" Spacing="10">
-                            <TextBlock Classes="SectionTitle" Text="狂级出金记录" Margin="0,0,0,8" />
-                            <TextBlock Classes="StatLabel" Text="{Binding GoldPoolSplitText}"
-                                       VerticalAlignment="Center" Margin="0,0,0,8" />
-                        </StackPanel>
-                        <ItemsControl ItemsSource="{Binding GoldPulls}">
-                            <ItemsControl.ItemsPanel>
-                                <ItemsPanelTemplate>
-                                    <WrapPanel />
-                                </ItemsPanelTemplate>
-                            </ItemsControl.ItemsPanel>
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate x:DataType="pages:GoldPull">
-                                    <Border Margin="0,0,8,8" CornerRadius="8" Padding="8,6"
-                                            Background="{DynamicResource SukiCardBackground}"
-                                            ToolTip.Tip="{Binding Time}">
-                                        <StackPanel Orientation="Horizontal" Spacing="8">
-                                            <Panel Width="34" Height="34">
-                                                <Border CornerRadius="17" ClipToBounds="True" Background="{DynamicResource Gacha.Rarity.Kuang}"
-                                                        IsVisible="{Binding HasAvatar}">
-                                                    <Image Source="{Binding Avatar}" Stretch="UniformToFill" Width="34" Height="34" />
-                                                </Border>
-                                                <Border CornerRadius="17" Background="{DynamicResource Gacha.Rarity.Kuang}"
-                                                        IsVisible="{Binding !HasAvatar}">
-                                                    <TextBlock Text="{Binding Initial}" FontSize="16" FontWeight="Bold"
-                                                               Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                                </Border>
-                                            </Panel>
-                                            <StackPanel MinWidth="110" VerticalAlignment="Center" Spacing="1">
-                                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="13" Foreground="{DynamicResource Gacha.Rarity.Kuang}" />
-                                                <StackPanel Orientation="Horizontal" Spacing="6">
-                                                    <TextBlock Text="{Binding Display}" FontSize="11"
-                                                               Foreground="{DynamicResource SukiLowText}" />
-                                                    <!--  来源标签与该条记录所属的追踪类型一一对应（活动/统合/定向/常驻/限定），
-                                                          与顶部胶囊同名；限定仍金色高亮，其余低亮。  -->
-                                                    <TextBlock Text="{Binding SourceLabel}" FontSize="11" FontWeight="SemiBold"
-                                                               IsVisible="{Binding IsLimited}"
-                                                               Foreground="{DynamicResource Gacha.Rarity.Kuang}" />
-                                                    <TextBlock Text="{Binding SourceLabel}" FontSize="11"
-                                                               IsVisible="{Binding !IsLimited}"
-                                                               Foreground="{DynamicResource SukiLowText}" />
-                                                </StackPanel>
-                                                <!--  长度按规则 2 的 80 抽硬保底取：条满即硬吃保底  -->
-                                                <ProgressBar Margin="0,3,0,0" Height="6"
-                                                             Minimum="0" Maximum="1"
-                                                             Value="{Binding Ratio}"
-                                                             Foreground="{DynamicResource Gacha.Rarity.Kuang}"
-                                                             Background="{DynamicResource SukiPrimaryColor5}" />
+                        <!--  卡 3：平均出狂耗费（颜色跟抽数档位走）  -->
+                        <Border Classes="Card" Margin="0,0,10,0">
+                                                        <Grid ColumnDefinitions="*,Auto">
+                                <StackPanel Grid.Column="0" Spacing="2">
+                                    <TextBlock Classes="KpiLabel" Text="平均出狂耗费" />
+                                    <TextBlock Classes="KpiValue"
+                                               Foreground="{Binding AvgPityValue, Converter={StaticResource PityBrush}}"
+                                               Text="{Binding AvgPityText}" />
+                                    <TextBlock Classes="Hint" Text="抽/狂 · ≤30 欧，≤55 正常，更高是保底" />
+                                </StackPanel>
+                                <!--  右侧挂 0~80 抽标尺：28.0 这个数落在软保底刻度哪一侧一眼可见  -->
+                                <Panel Grid.Column="1"
+                                           Margin="10,0,0,0"
+                                           Width="72"
+                                           Height="8"
+                                           VerticalAlignment="Center"
+                                           ToolTip.Tip="平均出狂在 0~80 抽标尺上的位置；竖线是 50 抽软保底">
+                                    <ProgressBar Height="8" Minimum="0" Maximum="1"
+                                               Value="{Binding AvgPityRatio}"
+                                               Background="{DynamicResource SukiPrimaryColor5}"
+                                               Foreground="{Binding AvgPityValue, Converter={StaticResource PityBrush}}" />
+                                    <Grid ColumnDefinitions="62.5*,37.5*" IsHitTestVisible="False">
+                                        <Border Grid.Column="1" Width="2" Height="10" HorizontalAlignment="Left" VerticalAlignment="Center" Background="{DynamicResource Gacha.Ruler.Tick}" />
+                                    </Grid>
+                                </Panel>
+                            </Grid>
+                        </Border>
+
+                        <!--  卡 4：档案局欧气评估  -->
+                        <Border Classes="Card">
+                                                        <Grid ColumnDefinitions="*,Auto">
+                                <StackPanel Grid.Column="0" Spacing="2">
+                                    <TextBlock Classes="KpiLabel" Text="档案局欧气评估" />
+                                    <TextBlock FontSize="21"
+                                               FontWeight="Bold"
+                                               Foreground="{Binding AvgPityValue, Converter={StaticResource PityBrush}}"
+                                               Text="{Binding LuckGrade}" />
+                                    <TextBlock Classes="Hint" Text="{Binding LuckSubtitle}" TextTrimming="CharacterEllipsis" />
+                                </StackPanel>
+                                <!--  右侧挂「可判定次数」：26 个狂配 22 次分母的疑问，这里给出另一半  -->
+                                <TextBlock Grid.Column="1"
+                                           Margin="10,0,0,0"
+                                           VerticalAlignment="Center"
+                                           FontSize="11"
+                                           Foreground="{DynamicResource SukiLowText}"
+                                           Text="{Binding JudgeableText}"
+                                           ToolTip.Tip="常驻追踪没有「当期 UP」的概念，所以不歪率的分母只算活动/定向/限定/统合池的出狂" />
+                            </Grid>
+                        </Border>
+                    </UniformGrid>
+
+                    <!--  ═══ 主体双栏：左卡池流 / 右逮捕流水 ═══  -->
+                    <Grid Grid.Row="1" ColumnDefinitions="6.5*,10,3.5*">
+
+                        <!--  左栏：按追踪类型分档的卡池卡片流  -->
+                        <ScrollViewer x:Name="PoolsScroll" Grid.Column="0" Padding="0,0,6,0">
+                            <StackPanel x:Name="PoolsStack" Spacing="10">
+                                <TextBlock Classes="SectionTitle" Text="追踪档案 · 分池进度" />
+
+                                <ItemsControl ItemsSource="{Binding BannerPools}" IsVisible="{Binding !IsEmpty}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="pages:BannerPoolGroup">
+                                            <Border Classes="Card" Margin="0,0,0,10">
+                                                <Grid RowDefinitions="Auto,Auto,Auto">
+
+                                                    <!--  卡池头部  -->
+                                                    <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,10">
+                                                        <StackPanel Grid.Column="0" Spacing="2">
+                                                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                                                <TextBlock FontSize="16"
+                                                                           FontWeight="SemiBold"
+                                                                           Foreground="{DynamicResource SukiText}"
+                                                                           Text="{Binding PoolName}" />
+                                                                <Border Classes="BadgePill"
+                                                                        VerticalAlignment="Center"
+                                                                        Background="{DynamicResource SukiPrimaryColor15}">
+                                                                    <TextBlock FontSize="11" Text="{Binding TotalText}" VerticalAlignment="Center" />
+                                                                </Border>
+                                                                <TextBlock Classes="Hint"
+                                                                           VerticalAlignment="Center"
+                                                                           Text="{Binding LatestText}" />
+                                                            </StackPanel>
+                                                            <TextBlock Classes="Hint"
+                                                                       HorizontalAlignment="Left"
+                                                                       Text="{Binding PoolSubtitle}"
+                                                                       TextTrimming="CharacterEllipsis"
+                                                                       MaxWidth="520" />
+                                                        </StackPanel>
+
+                                                        <!--  大保底：上次出狂歪了，下一个狂必为当期 UP  -->
+                                                        <Border Grid.Column="1"
+                                                                Padding="10,3"
+                                                                CornerRadius="11"
+                                                                VerticalAlignment="Center"
+                                                                Background="{DynamicResource Gacha.Status.OffBanner}"
+                                                                IsVisible="{Binding IsGuaranteedUp}"
+                                                                ToolTip.Tip="按本档记录推定：最近一次出狂是常驻角色（歪），所以下一个狂必为当期 UP">
+                                                            <TextBlock FontSize="11"
+                                                                       FontWeight="SemiBold"
+                                                                       Foreground="White"
+                                                                       Text="{Binding GuaranteeText}" />
+                                                        </Border>
+                                                    </Grid>
+
+                                                    <!--  保底水位线：条色随垫抽档位变（安全蓝 / 预警金 / 红区）  -->
+                                                    <Grid Grid.Row="1" ColumnDefinitions="Auto,*,Auto" Margin="0,0,0,12">
+                                                        <TextBlock Grid.Column="0"
+                                                                   FontSize="13"
+                                                                   FontWeight="SemiBold"
+                                                                   Foreground="{Binding CurrentPity, Converter={StaticResource PityProgressBrush}}"
+                                                                   Text="{Binding PityText}"
+                                                                   VerticalAlignment="Center" />
+                                                        <!--  软保底刻度用 62.5*/37.5* 分列定位，不用去量控件宽度（50 / 80 = 62.5%）  -->
+                                                        <Panel Grid.Column="1" Margin="10,0" VerticalAlignment="Center">
+                                                            <ProgressBar Height="10"
+                                                                         Minimum="0"
+                                                                         Maximum="1"
+                                                                         Value="{Binding PityRatio}"
+                                                                         VerticalAlignment="Center"
+                                                                         Background="{DynamicResource SukiPrimaryColor5}"
+                                                                         Foreground="{Binding CurrentPity, Converter={StaticResource PityProgressBrush}}" />
+                                                            <Grid ColumnDefinitions="62.5*,37.5*" IsHitTestVisible="False">
+                                                                <Border Grid.Column="1"
+                                                                        Width="2"
+                                                                        Height="14"
+                                                                        HorizontalAlignment="Left"
+                                                                        VerticalAlignment="Center"
+                                                                        Background="{DynamicResource Gacha.Ruler.Tick}"
+                                                                        ToolTip.Tip="50 抽起进入软保底：出狂概率从 2% 提到 10%" />
+                                                            </Grid>
+                                                        </Panel>
+                                                        <TextBlock Grid.Column="2"
+                                                                   Classes="Hint"
+                                                                   VerticalAlignment="Center"
+                                                                   Text="{Binding RemainingPityText}"
+                                                                   ToolTip.Tip="规则说明：连续 50 抽未出狂后每抽概率提升，第 80 抽必定出狂" />
+                                                    </Grid>
+
+                                                    <!--  狂厄勋章墙：一只都没出过时，卡池头部的「本档还没出过狂」已经说过了，这里不再重复  -->
+                                                    <StackPanel Grid.Row="2" Spacing="6">
+                                                        <TextBlock FontSize="13"
+                                                                   FontWeight="SemiBold"
+                                                                   Foreground="{DynamicResource Gacha.Rarity.Kuang}"
+                                                                   IsVisible="{Binding HasBadges}"
+                                                                   Text="{Binding SRankHeader}" />
+
+                                                        <ItemsControl ItemsSource="{Binding SRankBadges}">
+                                                            <ItemsControl.ItemsPanel>
+                                                                <ItemsPanelTemplate>
+                                                                    <WrapPanel />
+                                                                </ItemsPanelTemplate>
+                                                            </ItemsControl.ItemsPanel>
+                                                            <ItemsControl.ItemTemplate>
+                                                                <DataTemplate x:DataType="pages:SRankBadgeItem">
+                                                                    <Button Classes="BadgeTap"
+                                                                           Margin="0,0,8,8"
+                                                                           Click="OnBadgeFocusClick"
+                                                                           ToolTip.Tip="{Binding TipText}">
+                                                                        <Panel Width="68" Height="68">
+                                                                        <!--  头像（缺图时退回首字色块）  -->
+                                                                        <Border CornerRadius="10"
+                                                                                ClipToBounds="True"
+                                                                                Background="{DynamicResource Gacha.Rarity.Kuang}"
+                                                                                IsVisible="{Binding HasAvatar}">
+                                                                            <Image Width="68"
+                                                                                   Height="68"
+                                                                                   Source="{Binding Avatar}"
+                                                                                   Stretch="UniformToFill" />
+                                                                        </Border>
+                                                                        <Border CornerRadius="10"
+                                                                                Background="{DynamicResource Gacha.Rarity.Kuang}"
+                                                                                IsVisible="{Binding !HasAvatar}">
+                                                                            <TextBlock HorizontalAlignment="Center"
+                                                                                       VerticalAlignment="Center"
+                                                                                       FontSize="26"
+                                                                                       FontWeight="Bold"
+                                                                                       Foreground="White"
+                                                                                       Text="{Binding Initial}" />
+                                                                        </Border>
+
+                                                                        <!--  外框颜色跟出货抽数挂钩  -->
+                                                                        <Border CornerRadius="10"
+                                                                                BorderThickness="2"
+                                                                                BorderBrush="{Binding PityUsed, Converter={StaticResource PityBrush}}" />
+
+                                                                        <!--  「歪」字印章：挪到右上角。原来钉在左上角，跟底部那颗抽数胶囊一上一下正好夹住立绘的脸  -->
+                                                                        <Border Margin="0,2,2,0"
+                                                                                HorizontalAlignment="Right"
+                                                                                VerticalAlignment="Top"
+                                                                                CornerRadius="6"
+                                                                                Padding="4,0"
+                                                                                Background="{DynamicResource Gacha.Status.OffBanner}"
+                                                                                IsVisible="{Binding IsOffBanner}">
+                                                                            <TextBlock FontSize="11"
+                                                                                       FontWeight="Bold"
+                                                                                       Foreground="White"
+                                                                                       Text="歪" />
+                                                                        </Border>
+
+                                                                        <!--  底部悬浮胶囊：本次出货耗费的抽数  -->
+                                                                        <Border Classes="BadgePill"
+                                                                                Margin="0,0,0,6"
+                                                                                HorizontalAlignment="Center"
+                                                                                VerticalAlignment="Bottom"
+                                                                                Background="{Binding PityUsed, Converter={StaticResource PityBrush}}">
+                                                                            <TextBlock FontSize="10"
+                                                                                       FontWeight="SemiBold"
+                                                                                       Foreground="White"
+                                                                                       Text="{Binding PityText}" />
+                                                                        </Border>
+                                                                    </Panel>
+                                                                    </Button>
+                                                                </DataTemplate>
+                                                            </ItemsControl.ItemTemplate>
+                                                        </ItemsControl>
+                                                    </StackPanel>
+                                                </Grid>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+
+                                <TextBlock Classes="Hint"
+                                           Margin="0,30,0,0"
+                                           HorizontalAlignment="Center"
+                                           TextWrapping="Wrap"
+                                           TextAlignment="Center"
+                                           MaxWidth="460"
+                                           IsVisible="{Binding IsEmpty}"
+                                           Text="{Binding StatusText}" />
+                                <!--  ═══ 禁闭者图鉴（可折叠，默认收起）═══
+                                       和上面的炉章墙是两个维度：炉章墙按「每一次出金」排，看每只是第几抽出的；
+                                       这里按「角色」去重，看某个角色一共拿到几只、离满枷还差几只。  -->
+                                <Expander Margin="0,4,0,0"
+                                          IsExpanded="False"
+                                          IsVisible="{Binding HasCodex}"
+                                          Header="{Binding CodexHeaderText}">
+                                    <StackPanel Margin="0,8,0,0" Spacing="14">
+                                        <StackPanel Spacing="6" IsVisible="{Binding HasCodexKuang}">
+                                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                                <Border Width="4"
+                                                        Height="16"
+                                                        CornerRadius="2"
+                                                        VerticalAlignment="Center"
+                                                        Background="{DynamicResource Gacha.Rarity.Kuang}" />
+                                                <TextBlock FontSize="14"
+                                                           FontWeight="SemiBold"
+                                                           VerticalAlignment="Center"
+                                                           Foreground="{DynamicResource Gacha.Rarity.Kuang}"
+                                                           Text="狂级" />
+                                                <TextBlock Classes="Hint"
+                                                           VerticalAlignment="Center"
+                                                           Text="{Binding CodexTopKuangName, StringFormat='获取最多：{0}'}" />
                                             </StackPanel>
+                                            <ItemsControl ItemsSource="{Binding CodexKuang}">
+                                                <ItemsControl.ItemsPanel>
+                                                    <ItemsPanelTemplate>
+                                                        <WrapPanel />
+                                                    </ItemsPanelTemplate>
+                                                </ItemsControl.ItemsPanel>
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate x:DataType="pages:CharacterCodex">
+                                                        <Button Classes="CodexTap"
+                                                                Margin="0,0,8,8"
+                                                                Click="OnCodexFocusClick"
+                                                                ToolTip.Tip="{Binding TipText}">
+                                                            <Border Width="100"
+                                                                    CornerRadius="10"
+                                                                    ClipToBounds="True"
+                                                                    Background="{DynamicResource SukiCardBackground}">
+                                                                <StackPanel>
+                                                                    <Border Height="3" Background="{Binding RarityBrush}" />
+                                                                    <StackPanel Margin="8,10,8,8" Spacing="5">
+                                                                        <Panel Width="46" Height="46" HorizontalAlignment="Center">
+                                                                            <Border CornerRadius="9"
+                                                                                    ClipToBounds="True"
+                                                                                    Background="{Binding RarityBrush}"
+                                                                                    IsVisible="{Binding HasAvatar}">
+                                                                                <Image Width="46"
+                                                                                       Height="46"
+                                                                                       Source="{Binding Avatar}"
+                                                                                       Stretch="UniformToFill" />
+                                                                            </Border>
+                                                                            <Border CornerRadius="9"
+                                                                                    Background="{Binding RarityBrush}"
+                                                                                    IsVisible="{Binding !HasAvatar}">
+                                                                                <TextBlock HorizontalAlignment="Center"
+                                                                                           VerticalAlignment="Center"
+                                                                                           FontSize="19"
+                                                                                           FontWeight="Bold"
+                                                                                           Foreground="White"
+                                                                                           Text="{Binding Initial}" />
+                                                                            </Border>
+                                                                            <!--  右上角：一共拿到几只  -->
+                                                                            <Border Margin="0,2,2,0"
+                                                                                    HorizontalAlignment="Right"
+                                                                                    VerticalAlignment="Top"
+                                                                                    CornerRadius="6"
+                                                                                    Padding="5,0"
+                                                                                    Background="{Binding RarityBrush}">
+                                                                                <TextBlock FontSize="10"
+                                                                                           FontWeight="Bold"
+                                                                                           Foreground="White"
+                                                                                           Text="{Binding CountBadge}" />
+                                                                            </Border>
+                                                                            <!--  左下角：出过歪的标一下  -->
+                                                                            <Border Margin="0,0,0,0"
+                                                                                    HorizontalAlignment="Left"
+                                                                                    VerticalAlignment="Bottom"
+                                                                                    CornerRadius="5"
+                                                                                    Padding="4,0"
+                                                                                    Background="{DynamicResource Gacha.Status.OffBanner}"
+                                                                                    IsVisible="{Binding OffBanner}">
+                                                                                <TextBlock FontSize="10"
+                                                                                           FontWeight="Bold"
+                                                                                           Foreground="White"
+                                                                                           Text="歪" />
+                                                                            </Border>
+                                                                        </Panel>
+                                                                        <TextBlock FontSize="12"
+                                                                                   FontWeight="SemiBold"
+                                                                                   TextAlignment="Center"
+                                                                                   TextTrimming="CharacterEllipsis"
+                                                                                   Foreground="{DynamicResource SukiText}"
+                                                                                   Text="{Binding Name}" />
+                                                                        <Border CornerRadius="4"
+                                                                                Padding="6,1"
+                                                                                HorizontalAlignment="Center"
+                                                                                Background="{Binding RarityFillBrush}">
+                                                                            <TextBlock FontSize="10"
+                                                                                       FontWeight="SemiBold"
+                                                                                       Foreground="{Binding RarityBrush}"
+                                                                                       Text="{Binding ShackleText}" />
+                                                                        </Border>
+                                                                    </StackPanel>
+                                                                </StackPanel>
+                                                            </Border>
+                                                        </Button>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
                                         </StackPanel>
+                                        <StackPanel Spacing="6" IsVisible="{Binding HasCodexWei}">
+                                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                                <Border Width="4"
+                                                        Height="16"
+                                                        CornerRadius="2"
+                                                        VerticalAlignment="Center"
+                                                        Background="{DynamicResource Gacha.Rarity.Wei}" />
+                                                <TextBlock FontSize="14"
+                                                           FontWeight="SemiBold"
+                                                           VerticalAlignment="Center"
+                                                           Foreground="{DynamicResource Gacha.Rarity.Wei}"
+                                                           Text="危级" />
+                                                <TextBlock Classes="Hint"
+                                                           VerticalAlignment="Center"
+                                                           Text="{Binding CodexTopWeiName, StringFormat='获取最多：{0}'}" />
+                                            </StackPanel>
+                                            <ItemsControl ItemsSource="{Binding CodexWei}">
+                                                <ItemsControl.ItemsPanel>
+                                                    <ItemsPanelTemplate>
+                                                        <WrapPanel />
+                                                    </ItemsPanelTemplate>
+                                                </ItemsControl.ItemsPanel>
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate x:DataType="pages:CharacterCodex">
+                                                        <Button Classes="CodexTap"
+                                                                Margin="0,0,8,8"
+                                                                Click="OnCodexFocusClick"
+                                                                ToolTip.Tip="{Binding TipText}">
+                                                            <Border Width="100"
+                                                                    CornerRadius="10"
+                                                                    ClipToBounds="True"
+                                                                    Background="{DynamicResource SukiCardBackground}">
+                                                                <StackPanel>
+                                                                    <Border Height="3" Background="{Binding RarityBrush}" />
+                                                                    <StackPanel Margin="8,10,8,8" Spacing="5">
+                                                                        <Panel Width="46" Height="46" HorizontalAlignment="Center">
+                                                                            <Border CornerRadius="9"
+                                                                                    ClipToBounds="True"
+                                                                                    Background="{Binding RarityBrush}"
+                                                                                    IsVisible="{Binding HasAvatar}">
+                                                                                <Image Width="46"
+                                                                                       Height="46"
+                                                                                       Source="{Binding Avatar}"
+                                                                                       Stretch="UniformToFill" />
+                                                                            </Border>
+                                                                            <Border CornerRadius="9"
+                                                                                    Background="{Binding RarityBrush}"
+                                                                                    IsVisible="{Binding !HasAvatar}">
+                                                                                <TextBlock HorizontalAlignment="Center"
+                                                                                           VerticalAlignment="Center"
+                                                                                           FontSize="19"
+                                                                                           FontWeight="Bold"
+                                                                                           Foreground="White"
+                                                                                           Text="{Binding Initial}" />
+                                                                            </Border>
+                                                                            <!--  右上角：一共拿到几只  -->
+                                                                            <Border Margin="0,2,2,0"
+                                                                                    HorizontalAlignment="Right"
+                                                                                    VerticalAlignment="Top"
+                                                                                    CornerRadius="6"
+                                                                                    Padding="5,0"
+                                                                                    Background="{Binding RarityBrush}">
+                                                                                <TextBlock FontSize="10"
+                                                                                           FontWeight="Bold"
+                                                                                           Foreground="White"
+                                                                                           Text="{Binding CountBadge}" />
+                                                                            </Border>
+                                                                            <!--  左下角：出过歪的标一下  -->
+                                                                            <Border Margin="0,0,0,0"
+                                                                                    HorizontalAlignment="Left"
+                                                                                    VerticalAlignment="Bottom"
+                                                                                    CornerRadius="5"
+                                                                                    Padding="4,0"
+                                                                                    Background="{DynamicResource Gacha.Status.OffBanner}"
+                                                                                    IsVisible="{Binding OffBanner}">
+                                                                                <TextBlock FontSize="10"
+                                                                                           FontWeight="Bold"
+                                                                                           Foreground="White"
+                                                                                           Text="歪" />
+                                                                            </Border>
+                                                                        </Panel>
+                                                                        <TextBlock FontSize="12"
+                                                                                   FontWeight="SemiBold"
+                                                                                   TextAlignment="Center"
+                                                                                   TextTrimming="CharacterEllipsis"
+                                                                                   Foreground="{DynamicResource SukiText}"
+                                                                                   Text="{Binding Name}" />
+                                                                        <Border CornerRadius="4"
+                                                                                Padding="6,1"
+                                                                                HorizontalAlignment="Center"
+                                                                                Background="{Binding RarityFillBrush}">
+                                                                            <TextBlock FontSize="10"
+                                                                                       FontWeight="SemiBold"
+                                                                                       Foreground="{Binding RarityBrush}"
+                                                                                       Text="{Binding ShackleText}" />
+                                                                        </Border>
+                                                                    </StackPanel>
+                                                                </StackPanel>
+                                                            </Border>
+                                                        </Button>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </StackPanel>
+                                        <StackPanel Spacing="6" IsVisible="{Binding HasCodexPu}">
+                                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                                <Border Width="4"
+                                                        Height="16"
+                                                        CornerRadius="2"
+                                                        VerticalAlignment="Center"
+                                                        Background="{DynamicResource Gacha.Rarity.Pu}" />
+                                                <TextBlock FontSize="14"
+                                                           FontWeight="SemiBold"
+                                                           VerticalAlignment="Center"
+                                                           Foreground="{DynamicResource Gacha.Rarity.Pu}"
+                                                           Text="普级" />
+                                                <TextBlock Classes="Hint"
+                                                           VerticalAlignment="Center"
+                                                           Text="{Binding CodexTopPuName, StringFormat='获取最多：{0}'}" />
+                                            </StackPanel>
+                                            <ItemsControl ItemsSource="{Binding CodexPu}">
+                                                <ItemsControl.ItemsPanel>
+                                                    <ItemsPanelTemplate>
+                                                        <WrapPanel />
+                                                    </ItemsPanelTemplate>
+                                                </ItemsControl.ItemsPanel>
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate x:DataType="pages:CharacterCodex">
+                                                        <Button Classes="CodexTap"
+                                                                Margin="0,0,8,8"
+                                                                Click="OnCodexFocusClick"
+                                                                ToolTip.Tip="{Binding TipText}">
+                                                            <Border Width="100"
+                                                                    CornerRadius="10"
+                                                                    ClipToBounds="True"
+                                                                    Background="{DynamicResource SukiCardBackground}">
+                                                                <StackPanel>
+                                                                    <Border Height="3" Background="{Binding RarityBrush}" />
+                                                                    <StackPanel Margin="8,10,8,8" Spacing="5">
+                                                                        <Panel Width="46" Height="46" HorizontalAlignment="Center">
+                                                                            <Border CornerRadius="9"
+                                                                                    ClipToBounds="True"
+                                                                                    Background="{Binding RarityBrush}"
+                                                                                    IsVisible="{Binding HasAvatar}">
+                                                                                <Image Width="46"
+                                                                                       Height="46"
+                                                                                       Source="{Binding Avatar}"
+                                                                                       Stretch="UniformToFill" />
+                                                                            </Border>
+                                                                            <Border CornerRadius="9"
+                                                                                    Background="{Binding RarityBrush}"
+                                                                                    IsVisible="{Binding !HasAvatar}">
+                                                                                <TextBlock HorizontalAlignment="Center"
+                                                                                           VerticalAlignment="Center"
+                                                                                           FontSize="19"
+                                                                                           FontWeight="Bold"
+                                                                                           Foreground="White"
+                                                                                           Text="{Binding Initial}" />
+                                                                            </Border>
+                                                                            <!--  右上角：一共拿到几只  -->
+                                                                            <Border Margin="0,2,2,0"
+                                                                                    HorizontalAlignment="Right"
+                                                                                    VerticalAlignment="Top"
+                                                                                    CornerRadius="6"
+                                                                                    Padding="5,0"
+                                                                                    Background="{Binding RarityBrush}">
+                                                                                <TextBlock FontSize="10"
+                                                                                           FontWeight="Bold"
+                                                                                           Foreground="White"
+                                                                                           Text="{Binding CountBadge}" />
+                                                                            </Border>
+                                                                            <!--  左下角：出过歪的标一下  -->
+                                                                            <Border Margin="0,0,0,0"
+                                                                                    HorizontalAlignment="Left"
+                                                                                    VerticalAlignment="Bottom"
+                                                                                    CornerRadius="5"
+                                                                                    Padding="4,0"
+                                                                                    Background="{DynamicResource Gacha.Status.OffBanner}"
+                                                                                    IsVisible="{Binding OffBanner}">
+                                                                                <TextBlock FontSize="10"
+                                                                                           FontWeight="Bold"
+                                                                                           Foreground="White"
+                                                                                           Text="歪" />
+                                                                            </Border>
+                                                                        </Panel>
+                                                                        <TextBlock FontSize="12"
+                                                                                   FontWeight="SemiBold"
+                                                                                   TextAlignment="Center"
+                                                                                   TextTrimming="CharacterEllipsis"
+                                                                                   Foreground="{DynamicResource SukiText}"
+                                                                                   Text="{Binding Name}" />
+                                                                        <Border CornerRadius="4"
+                                                                                Padding="6,1"
+                                                                                HorizontalAlignment="Center"
+                                                                                Background="{Binding RarityFillBrush}">
+                                                                            <TextBlock FontSize="10"
+                                                                                       FontWeight="SemiBold"
+                                                                                       Foreground="{Binding RarityBrush}"
+                                                                                       Text="{Binding ShackleText}" />
+                                                                        </Border>
+                                                                    </StackPanel>
+                                                                </StackPanel>
+                                                            </Border>
+                                                        </Button>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Expander>
+                            </StackPanel>
+                        </ScrollViewer>
+
+                        <!--  右栏：逮捕流水时间轴与过滤面板  -->
+                        <Border Grid.Column="2" Classes="Card" Padding="12">
+                            <Grid RowDefinitions="Auto,Auto,Auto,*">
+
+                                <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="8" Margin="0,0,0,8">
+                                    <TextBlock Classes="SectionTitle" Text="出金记录" />
+                                    <Border Classes="BadgePill"
+                                            VerticalAlignment="Center"
+                                            Background="{DynamicResource SukiPrimaryColor15}">
+                                        <TextBlock FontSize="11" Text="{Binding TimelineCountText}" VerticalAlignment="Center" />
                                     </Border>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                    </StackPanel>
-                </ScrollViewer>
-            </TabItem>
 
-            <TabItem Header="表格">
-                <Grid RowDefinitions="Auto,*,Auto" Margin="4,8,4,4">
-                    <Border Grid.Row="0" Classes="Card" Padding="12,8" Margin="0,0,0,10">
-                        <WrapPanel Orientation="Horizontal">
-                            <Button Command="{Binding LoadCommand}" Content="刷新" Margin="0,0,8,8" />
-                            <Button Command="{Binding ResetFiltersCommand}" Content="重置" Margin="0,0,16,8" />
-                            <TextBlock Classes="FieldLabel" Text="稀有度" Margin="0,0,4,8" />
-                            <ComboBox ItemsSource="{Binding RarityFilters}" SelectedItem="{Binding SelectedRarity}"
-                                      MinWidth="82" Margin="0,0,14,8" />
-                            <TextBlock Classes="FieldLabel" Text="来源" Margin="0,0,4,8" />
-                            <ComboBox ItemsSource="{Binding SourceFilters}" SelectedItem="{Binding SelectedSource}"
-                                      MinWidth="180" Margin="0,0,14,8" />
-                            <TextBlock Classes="FieldLabel" Text="排序" Margin="0,0,4,8" />
-                            <ComboBox ItemsSource="{Binding SortFields}" SelectedItem="{Binding SelectedSortField}"
-                                      MinWidth="96" Margin="0,0,4,8" />
-                            <ToggleButton IsChecked="{Binding SortDescending}" Content="降序" MinWidth="52" Margin="0,0,14,8" />
-                            <TextBox Text="{Binding SearchText}" Watermark="搜索 角色名 / 卡池" MinWidth="170" Margin="0,0,0,8" />
-                        </WrapPanel>
-                    </Border>
+                                </StackPanel>
 
-                    <Border Grid.Row="1" CornerRadius="10" ClipToBounds="True" BorderThickness="1"
-                            BorderBrush="{DynamicResource SukiBorderBrush}">
-                        <Panel>
-                            <DataGrid ItemsSource="{Binding Records}"
-                                      x:CompileBindings="False"
-                                      IsVisible="{Binding !IsEmpty}"
-                                      AutoGenerateColumns="False" IsReadOnly="True"
-                                      CanUserSortColumns="False" CanUserReorderColumns="False" CanUserResizeColumns="True"
-                                      GridLinesVisibility="All" HeadersVisibility="Column" SelectionMode="Single">
-                                <DataGrid.Styles>
-                                    <Style Selector="DataGridRow">
-                                        <Setter Property="Background" Value="{Binding RowTint}" />
-                                    </Style>
-                                    <Style Selector="DataGridRow:nth-child(even)">
-                                        <Setter Property="Background" Value="{Binding RowTint}" />
-                                    </Style>
-                                    <Style Selector="DataGridCell">
-                                        <Setter Property="Background" Value="Transparent" />
-                                        <Setter Property="HorizontalContentAlignment" Value="Left" />
-                                        <Setter Property="VerticalContentAlignment" Value="Center" />
-                                        <Setter Property="Padding" Value="10,5" />
-                                        <Setter Property="FontSize" Value="13" />
-                                        <Setter Property="Foreground" Value="Black" />
-                                    </Style>
-                                    <Style Selector="DataGridColumnHeader">
-                                        <Setter Property="HorizontalContentAlignment" Value="Left" />
-                                        <Setter Property="VerticalContentAlignment" Value="Center" />
-                                        <Setter Property="Padding" Value="12,9" />
-                                        <Setter Property="FontSize" Value="13" />
-                                        <Setter Property="FontWeight" Value="SemiBold" />
-                                        <Setter Property="Background" Value="{DynamicResource Gacha.Table.HeaderBackground}" />
-                                        <Setter Property="Foreground" Value="{DynamicResource Gacha.Table.HeaderForeground}" />
-                                        <Setter Property="Template">
-                                            <ControlTemplate>
-                                                <Border Background="{TemplateBinding Background}"
-                                                        BorderBrush="{DynamicResource Gacha.Table.HeaderBorder}" BorderThickness="0,0,1,0"
-                                                        Padding="{TemplateBinding Padding}">
-                                                    <ContentPresenter Content="{TemplateBinding Content}"
-                                                                      ContentTemplate="{TemplateBinding ContentTemplate}"
-                                                                      HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
-                                                                      VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
-                                                                      TextBlock.Foreground="{TemplateBinding Foreground}" />
+                                <!--  筛选：按追踪类型看出金。选项来自数据里真实出现过的类型；
+                                      和点勋章墙头像用的是同一个状态，点头像也会把这里的选中态带过去  -->
+                                <ListBox Grid.Row="1"
+                                         Classes="Pills"
+                                         Margin="0,0,0,8"
+                                         Background="Transparent"
+                                         BorderThickness="0"
+                                         ItemsSource="{Binding TimelineTypeFilters}"
+                                         SelectedItem="{Binding SelectedTimelineTypeFilter, Mode=TwoWay}"
+                                         ToolTip.Tip="只看某个追踪类型的出金；点勋章墙上的头像也会同步到这里">
+                                    <ListBox.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <WrapPanel />
+                                        </ItemsPanelTemplate>
+                                    </ListBox.ItemsPanel>
+                                </ListBox>
+
+                                <!--  过滤面板：流水只剩狂级了，所以不再需要狂/危/普那三档胶囊，留关键字搜索就够  -->
+                                <StackPanel Grid.Row="2" Spacing="8" Margin="0,0,0,8">
+                                    <TextBox Watermark="搜索 角色名 / 卡池" Text="{Binding TimelineSearch}" />
+                                </StackPanel>
+                                <ListBox Grid.Row="3"
+                                         Classes="Timeline"
+                                         ItemsSource="{Binding Timeline}"
+                                         Background="Transparent"
+                                         BorderThickness="0"
+                                         ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                    <ListBox.ItemTemplate>
+                                        <DataTemplate x:DataType="pages:GachaPullItem">
+                                            <!--  单行排：#序号 / 头像 / 名字 / 卡池·时间 / 抽数。
+                                                  原来是两行（稀有度单独占一颗胶囊），一屏只能看 11 条；稀有度靠行首色条 + 名字已经读得出来，
+                                                  去掉那颗胶囊腾出的宽度刚好把两行并成一行，一屏约 18 条。
+                                                  抽数只有狂级给实心色胶囊，普/危 降成灰色小字——之前每行一颗绿胶囊满屏抢眼，
+                                                  反而把真正出货的那几行压下去了。  -->
+                                            <Grid ColumnDefinitions="Auto,*,Auto,Auto"
+                                                  Height="32"
+                                                  ToolTip.Tip="{Binding TipText}">
+                                                <!--  头像底色就是稀有度色，不用再拉一条色条（拉了会贴着头像糊成一块）  -->
+                                                                                                                                                <Panel Grid.Column="0"
+                                                        Width="24"
+                                                        Height="24"
+                                                        Margin="0,0,7,0"
+                                                        VerticalAlignment="Center">
+                                                    <Border CornerRadius="6"
+                                                            ClipToBounds="True"
+                                                            Background="{Binding RarityBrush}"
+                                                            IsVisible="{Binding HasAvatar}">
+                                                        <Image Source="{Binding Avatar}" Stretch="UniformToFill" />
+                                                    </Border>
+                                                    <Border CornerRadius="6"
+                                                            Background="{Binding RarityBrush}"
+                                                            IsVisible="{Binding !HasAvatar}">
+                                                        <TextBlock HorizontalAlignment="Center"
+                                                                   VerticalAlignment="Center"
+                                                                   FontSize="12"
+                                                                   FontWeight="Bold"
+                                                                   Foreground="White"
+                                                                   Text="{Binding Initial}" />
+                                                    </Border>
+                                                </Panel>
+
+                                                <TextBlock Grid.Column="1"
+                                                        FontSize="13"
+                                                        Foreground="{DynamicResource SukiText}"
+                                                        Text="{Binding Name}"
+                                                        TextTrimming="CharacterEllipsis"
+                                                        VerticalAlignment="Center" />
+
+                                                <!--  卡池短名 + 时间：跟上面搜索框呼应，看得出这一抽是哪个池子出的  -->
+                                                <StackPanel Grid.Column="2"
+                                                        Margin="6,0"
+                                                        Orientation="Horizontal"
+                                                        Spacing="5"
+                                                        VerticalAlignment="Center">
+                                                    <TextBlock FontSize="10"
+                                                           Foreground="{DynamicResource SukiLowText}"
+                                                           MaxWidth="52"
+                                                           TextTrimming="CharacterEllipsis"
+                                                           Text="{Binding Pool}"
+                                                           VerticalAlignment="Center" />
+                                                    <TextBlock FontSize="10"
+                                                           Foreground="{DynamicResource SukiLowText}"
+                                                           Text="{Binding ShortTime}"
+                                                           VerticalAlignment="Center" />
+                                                </StackPanel>
+
+                                                <!--  狂：实心色胶囊（这次出货是第几抽，值得高亮）  -->
+                                                <Border Grid.Column="3"
+                                                        Classes="BadgePill"
+                                                        MinWidth="38"
+                                                        VerticalAlignment="Center"
+                                                        IsVisible="{Binding IsKuang}"
+                                                        Background="{Binding PityCount, Converter={StaticResource PityBrush}}">
+                                                    <TextBlock HorizontalAlignment="Center"
+                                                           FontSize="10"
+                                                           FontWeight="SemiBold"
+                                                           Foreground="White"
+                                                           Text="{Binding PityBadgeText}" />
                                                 </Border>
-                                            </ControlTemplate>
-                                        </Setter>
-                                    </Style>
-                                </DataGrid.Styles>
-                                <DataGrid.Columns>
-                                    <DataGridTemplateColumn Header="卡池" Width="1.3*">
-                                        <DataGridTemplateColumn.CellTemplate>
-                                            <DataTemplate>
-                                                <TextBlock Text="{Binding Pool}" Foreground="{DynamicResource Gacha.Table.CellForeground}"
-                                                           VerticalAlignment="Center" HorizontalAlignment="Left" />
-                                            </DataTemplate>
-                                        </DataGridTemplateColumn.CellTemplate>
-                                    </DataGridTemplateColumn>
-                                    <DataGridTextColumn Header="稀有度" Binding="{Binding Rarity}" Width="100" />
-                                    <DataGridTextColumn Header="角色名" Binding="{Binding Name}" Width="1.3*" />
-                                    <DataGridTextColumn Header="时间" Binding="{Binding Time}" Width="185" />
-                                </DataGrid.Columns>
-                            </DataGrid>
-                            <TextBlock Text="{Binding StatusText}" IsVisible="{Binding IsEmpty}"
-                                       HorizontalAlignment="Center" VerticalAlignment="Center"
-                                       Foreground="{DynamicResource SukiLowText}" />
-                        </Panel>
-                    </Border>
-
-                    <!-- 分页条 -->
-                    <Border Grid.Row="2" Classes="Card" Padding="12,6" Margin="0,10,0,0"
-                            IsVisible="{Binding !IsEmpty}">
-                        <StackPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Center">
-                            <Button Command="{Binding FirstPageCommand}" Content="⏮" IsEnabled="{Binding CanPrev}"
-                                    MinWidth="34" Padding="6,2" />
-                            <Button Command="{Binding PrevPageCommand}" Content="上一页" IsEnabled="{Binding CanPrev}" />
-                            <TextBlock Text="{Binding PageText}" VerticalAlignment="Center" MinWidth="96" TextAlignment="Center"
-                                       Foreground="{DynamicResource SukiText}" />
-                            <Button Command="{Binding NextPageCommand}" Content="下一页" IsEnabled="{Binding CanNext}" />
-                            <Button Command="{Binding LastPageCommand}" Content="⏭" IsEnabled="{Binding CanNext}"
-                                    MinWidth="34" Padding="6,2" />
-                            <TextBlock Text="每页" VerticalAlignment="Center" Margin="12,0,0,0"
-                                       Foreground="{DynamicResource SukiLowText}" />
-                            <ComboBox ItemsSource="{Binding PageSizeOptions}" SelectedItem="{Binding PageSize}"
-                                      MinWidth="66" VerticalAlignment="Center" />
-                            <TextBlock Text="{Binding DisplayCount, StringFormat='共 {0} 条'}" VerticalAlignment="Center"
-                                       Margin="8,0,0,0" Foreground="{DynamicResource SukiLowText}" />
-                        </StackPanel>
-                    </Border>
+                                                <!--  普/危：灰字，这里是「已经垫了多少抽」，不是「这次出货抽数」  -->
+                                                <TextBlock Grid.Column="3"
+                                                        MinWidth="38"
+                                                        FontSize="10"
+                                                        TextAlignment="Right"
+                                                        VerticalAlignment="Center"
+                                                        IsVisible="{Binding !IsKuang}"
+                                                        Foreground="{DynamicResource SukiLowText}"
+                                                        ToolTip.Tip="{Binding PityTip}"
+                                                        Text="{Binding PityDimText}" />
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ListBox.ItemTemplate>
+                                </ListBox>
+                            </Grid>
+                        </Border>
+                    </Grid>
                 </Grid>
-            </TabItem>
+            </Grid>
 
-            <TabItem Header="统计">
-                <ScrollViewer Padding="4,8">
-                    <StackPanel Spacing="14">
-                        <!-- 顶部汇总卡 -->
-                        <WrapPanel>
-                            <Border Classes="Card" MinWidth="150" Margin="0,0,12,12">
-                                <StackPanel>
-                                    <TextBlock Classes="StatLabel" Text="总抽数" />
-                                    <TextBlock Classes="StatValue" Text="{Binding DisplayCount}" />
-                                    <TextBlock Classes="StatLabel" Text="{Binding StatusText}" Margin="0,4,0,0"
-                                               TextTrimming="CharacterEllipsis" MaxWidth="220" />
-                                </StackPanel>
-                            </Border>
-                            <Border Classes="Card" MinWidth="150" Margin="0,0,12,12">
-                                <StackPanel>
-                                    <TextBlock Classes="StatLabel" Text="狂" />
-                                    <TextBlock Classes="StatValue" Text="{Binding KuangCount}" Foreground="{DynamicResource Gacha.Rarity.Kuang}" />
-                                    <TextBlock Classes="StatLabel" Text="{Binding TopKuangName, StringFormat='最多：{0}'}"
-                                               TextTrimming="CharacterEllipsis" MaxWidth="150" />
-                                </StackPanel>
-                            </Border>
-                            <Border Classes="Card" MinWidth="150" Margin="0,0,12,12">
-                                <StackPanel>
-                                    <TextBlock Classes="StatLabel" Text="危" />
-                                    <TextBlock Classes="StatValue" Text="{Binding WeiCount}" Foreground="{DynamicResource Gacha.Rarity.Wei}" />
-                                    <TextBlock Classes="StatLabel" Text="{Binding TopWeiName, StringFormat='最多：{0}'}"
-                                               TextTrimming="CharacterEllipsis" MaxWidth="150" />
-                                </StackPanel>
-                            </Border>
-                            <Border Classes="Card" MinWidth="150" Margin="0,0,12,12">
-                                <StackPanel>
-                                    <TextBlock Classes="StatLabel" Text="普" />
-                                    <TextBlock Classes="StatValue" Text="{Binding PuCount}" Foreground="{DynamicResource Gacha.Rarity.Pu}" />
-                                    <TextBlock Classes="StatLabel" Text="{Binding TopPuName, StringFormat='最多：{0}'}"
-                                               TextTrimming="CharacterEllipsis" MaxWidth="150" />
-                                </StackPanel>
-                            </Border>
-                        </WrapPanel>
+                <!--  ═══ 表格：全量明细，筛选 / 排序 / 分页 ═══  -->
+                <Grid Grid.Row="1" IsVisible="{Binding IsTableView}">
+                    <Grid RowDefinitions="Auto,*,Auto" Margin="4,8,4,4">
+                        <Border Grid.Row="0" Classes="Card" Padding="12,8" Margin="0,0,0,10">
+                            <WrapPanel Orientation="Horizontal">
+                                <TextBlock Classes="Hint" Text="稀有度" Margin="0,0,6,8" VerticalAlignment="Center" />
+                                <ComboBox ItemsSource="{Binding RarityFilters}" SelectedItem="{Binding SelectedRarity}"
+                                          MinWidth="84" Margin="0,0,14,8" />
+                                <TextBlock Classes="Hint" Text="文件来源" Margin="0,0,6,8" VerticalAlignment="Center" />
+                                <ComboBox ItemsSource="{Binding SourceFilters}" SelectedItem="{Binding SelectedSource}"
+                                          MinWidth="180" Margin="0,0,14,8" />
+                                <TextBlock Classes="Hint" Text="排序" Margin="0,0,6,8" VerticalAlignment="Center" />
+                                <ComboBox ItemsSource="{Binding SortFields}" SelectedItem="{Binding SelectedSortField}"
+                                          MinWidth="96" Margin="0,0,6,8" />
+                                <ToggleButton IsChecked="{Binding SortDescending}" Content="降序" MinWidth="54" Margin="0,0,14,8" />
+                                <TextBox Text="{Binding TableSearch}" Watermark="搜索 禁闭者名 / 卡池" MinWidth="180" Margin="0,0,10,8" />
+                                <Button Command="{Binding ResetTableFiltersCommand}" Content="重置筛选" Margin="0,0,0,8" />
+                            </WrapPanel>
+                        </Border>
 
-                        <!-- 角色获得次数卡片墙（按 狂→危→普 排列） -->
-                        <TextBlock Classes="SectionTitle" Text="角色获得次数（狂 → 危 → 普）" />
-                        <ItemsControl ItemsSource="{Binding CharacterStats}">
-                            <ItemsControl.ItemsPanel>
-                                <ItemsPanelTemplate>
-                                    <WrapPanel />
-                                </ItemsPanelTemplate>
-                            </ItemsControl.ItemsPanel>
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate x:DataType="pages:CharacterStat">
-                                    <Border Width="96" Margin="0,0,10,10" CornerRadius="10" Padding="8,10"
-                                            Background="{DynamicResource SukiCardBackground}">
-                                        <StackPanel Spacing="6">
-                                            <Panel Width="42" Height="42" HorizontalAlignment="Center">
-                                                <Border CornerRadius="9" ClipToBounds="True" Background="{Binding RarityBrush}"
-                                                        IsVisible="{Binding HasAvatar}">
-                                                    <Image Source="{Binding Avatar}" Stretch="UniformToFill" Width="42" Height="42" />
-                                                </Border>
-                                                <Border CornerRadius="9" Background="{Binding RarityBrush}"
-                                                        IsVisible="{Binding !HasAvatar}">
-                                                    <TextBlock Text="{Binding Initial}" FontSize="20" FontWeight="Bold"
-                                                               Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                                </Border>
-                                            </Panel>
-                                            <TextBlock Text="{Binding Name}" FontSize="12" TextAlignment="Center"
-                                                       TextTrimming="CharacterEllipsis" Foreground="{DynamicResource SukiText}" />
-                                            <TextBlock Text="{Binding Count}" FontWeight="Bold" FontSize="15" TextAlignment="Center"
-                                                       Foreground="{DynamicResource SukiLowText}" />
-                                        </StackPanel>
-                                    </Border>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                    </StackPanel>
-                </ScrollViewer>
-            </TabItem>
-        </TabControl>
+                        <Border Grid.Row="1" CornerRadius="10" ClipToBounds="True" BorderThickness="1"
+                                BorderBrush="{DynamicResource SukiBorderBrush}"
+                                Background="{DynamicResource SukiCardBackground}">
+                            <Grid>
+                                <DataGrid ItemsSource="{Binding Records}"
+                                          x:CompileBindings="False"
+                                          IsVisible="{Binding !IsEmpty}"
+                                          AutoGenerateColumns="False" IsReadOnly="True"
+                                          CanUserSortColumns="False" CanUserReorderColumns="False" CanUserResizeColumns="True"
+                                          GridLinesVisibility="Horizontal" HeadersVisibility="Column" SelectionMode="Single">
+                                    <DataGrid.Styles>
+                                        <Style Selector="DataGridRow">
+                                            <Setter Property="Background" Value="{Binding RowFill}" />
+                                        </Style>
+                                        <Style Selector="DataGridRow:nth-child(even)">
+                                            <Setter Property="Background" Value="{Binding RowFill}" />
+                                        </Style>
+                                        <Style Selector="DataGridCell">
+                                            <Setter Property="Background" Value="Transparent" />
+                                            <Setter Property="HorizontalContentAlignment" Value="Left" />
+                                            <Setter Property="VerticalContentAlignment" Value="Center" />
+                                            <Setter Property="Padding" Value="10,6" />
+                                            <Setter Property="FontSize" Value="13" />
+                                            <Setter Property="Foreground" Value="{DynamicResource SukiText}" />
+                                        </Style>
+                                        <Style Selector="DataGridColumnHeader">
+                                            <Setter Property="HorizontalContentAlignment" Value="Left" />
+                                            <Setter Property="VerticalContentAlignment" Value="Center" />
+                                            <Setter Property="Padding" Value="12,9" />
+                                            <Setter Property="FontSize" Value="13" />
+                                            <Setter Property="FontWeight" Value="SemiBold" />
+                                            <Setter Property="Background" Value="{DynamicResource Gacha.Table.HeaderBackground}" />
+                                            <Setter Property="Foreground" Value="{DynamicResource Gacha.Table.HeaderForeground}" />
+                                            <Setter Property="Template">
+                                                <ControlTemplate>
+                                                    <Border Background="{TemplateBinding Background}"
+                                                            BorderBrush="{DynamicResource Gacha.Table.HeaderBorder}" BorderThickness="0,0,1,0"
+                                                            Padding="{TemplateBinding Padding}">
+                                                        <ContentPresenter Content="{TemplateBinding Content}"
+                                                                          ContentTemplate="{TemplateBinding ContentTemplate}"
+                                                                          HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                                                          VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                                                                          TextBlock.Foreground="{TemplateBinding Foreground}" />
+                                                    </Border>
+                                                </ControlTemplate>
+                                            </Setter>
+                                        </Style>
+                                    </DataGrid.Styles>
+                                    <DataGrid.Columns>
+                                        <DataGridTemplateColumn Header="卡池" Width="1.4*">
+                                            <DataGridTemplateColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <Grid ColumnDefinitions="Auto,Auto,*">
+                                                        <Border Grid.Column="0" Width="4" Height="20" CornerRadius="2"
+                                                                Background="{Binding RarityBrush}" Margin="0,0,8,0"
+                                                                VerticalAlignment="Center" />
+                                                        <Border Grid.Column="1" Classes="Tag" Margin="0,0,8,0">
+                                                            <TextBlock Text="{Binding TypeShortLabel}" />
+                                                        </Border>
+                                                        <TextBlock Grid.Column="2" Text="{Binding Pool}"
+                                                                   Foreground="{DynamicResource SukiText}"
+                                                                   VerticalAlignment="Center"
+                                                                   TextTrimming="CharacterEllipsis" />
+                                                    </Grid>
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellTemplate>
+                                        </DataGridTemplateColumn>
+
+                                        <DataGridTemplateColumn Header="稀有度" Width="96">
+                                            <DataGridTemplateColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <Border CornerRadius="6" Padding="10,2" HorizontalAlignment="Left"
+                                                            VerticalAlignment="Center"
+                                                            Background="{Binding RarityBadgeFill}">
+                                                        <TextBlock Text="{Binding Rarity}" FontWeight="Bold" FontSize="12"
+                                                                   Foreground="{Binding RarityBrush}" />
+                                                    </Border>
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellTemplate>
+                                        </DataGridTemplateColumn>
+
+                                        <DataGridTemplateColumn Header="禁闭者" Width="1.3*">
+                                            <DataGridTemplateColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <Grid ColumnDefinitions="Auto,*">
+                                                        <Panel Grid.Column="0" Width="24" Height="24" Margin="0,0,8,0"
+                                                               VerticalAlignment="Center">
+                                                            <Border CornerRadius="12" ClipToBounds="True"
+                                                                    Background="{Binding RarityBrush}"
+                                                                    IsVisible="{Binding HasAvatar}">
+                                                                <Image Source="{Binding Avatar}" Stretch="UniformToFill"
+                                                                       Width="24" Height="24" />
+                                                            </Border>
+                                                            <Border CornerRadius="12" Background="{Binding RarityBrush}"
+                                                                    IsVisible="{Binding !HasAvatar}">
+                                                                <TextBlock Text="{Binding Initial}" FontSize="11"
+                                                                           FontWeight="Bold" Foreground="White"
+                                                                           HorizontalAlignment="Center"
+                                                                           VerticalAlignment="Center" />
+                                                            </Border>
+                                                        </Panel>
+                                                        <TextBlock Grid.Column="1" Text="{Binding Name}"
+                                                                   Foreground="{DynamicResource SukiText}"
+                                                                   FontWeight="SemiBold"
+                                                                   VerticalAlignment="Center"
+                                                                   TextTrimming="CharacterEllipsis" />
+                                                    </Grid>
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellTemplate>
+                                        </DataGridTemplateColumn>
+
+                                        <DataGridTemplateColumn Header="时间" Width="185">
+                                            <DataGridTemplateColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <TextBlock Text="{Binding Time}"
+                                                               Foreground="{DynamicResource SukiLowText}"
+                                                               VerticalAlignment="Center" />
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellTemplate>
+                                        </DataGridTemplateColumn>
+                                    </DataGrid.Columns>
+                                </DataGrid>
+
+                                <TextBlock Text="{Binding StatusText}" IsVisible="{Binding IsEmpty}"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                                           Foreground="{DynamicResource SukiLowText}" />
+                            </Grid>
+                        </Border>
+
+                        <Border Grid.Row="2" Classes="Card" Padding="12,6" Margin="0,10,0,0"
+                                IsVisible="{Binding !IsEmpty}">
+                            <StackPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Center">
+                                <Button Command="{Binding FirstPageCommand}" Content="⏮" IsEnabled="{Binding CanPrev}"
+                                        MinWidth="34" Padding="6,2" />
+                                <Button Command="{Binding PrevPageCommand}" Content="上一页" IsEnabled="{Binding CanPrev}" />
+                                <TextBlock Text="{Binding PageText}" VerticalAlignment="Center" MinWidth="96"
+                                           TextAlignment="Center" Foreground="{DynamicResource SukiText}" />
+                                <Button Command="{Binding NextPageCommand}" Content="下一页" IsEnabled="{Binding CanNext}" />
+                                <Button Command="{Binding LastPageCommand}" Content="⏭" IsEnabled="{Binding CanNext}"
+                                        MinWidth="34" Padding="6,2" />
+                                <TextBlock Text="每页" VerticalAlignment="Center" Margin="12,0,0,0"
+                                           Foreground="{DynamicResource SukiLowText}" />
+                                <ComboBox ItemsSource="{Binding PageSizeOptions}" SelectedItem="{Binding PageSize}"
+                                          MinWidth="66" VerticalAlignment="Center" />
+                                <TextBlock Text="{Binding TableCount, StringFormat='共 {0} 条'}" VerticalAlignment="Center"
+                                           Margin="8,0,0,0" Foreground="{DynamicResource SukiLowText}" />
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+            </Grid>
+
+        <!--  晒卡分享卡的渲染宿主：0 尺寸 + 裁剪，正常排版时完全看不见。
+              导出时把 GachaShareCard 临时挂这里——模板与样式要挂在视觉树里才会应用（纯离屏会排出 0 高度），
+              量排/渲染完立刻摘掉。  -->
+        <Border x:Name="ShareCardHost"
+                Grid.Row="0"
+                Grid.RowSpan="2"
+                Width="0"
+                Height="0"
+                HorizontalAlignment="Left"
+                VerticalAlignment="Top"
+                ClipToBounds="True"
+                IsHitTestVisible="False" />
     </Grid>
 </UserControl>

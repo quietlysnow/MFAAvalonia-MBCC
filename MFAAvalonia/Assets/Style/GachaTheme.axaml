@@ -4,21 +4,45 @@
     <!--
         抽卡记录页的设计令牌。
 
-        稀有度三色（狂棕金 / 危紫 / 普蓝）原本在 GachaRecordView.axaml 里硬编码了十几处，
-        C# 侧的 RarityPalette 又单独维护了一份；这里集中成唯一来源：
+        稀有度三色（狂棕金 / 危紫 / 普蓝）与欧非分级三色（欧皇绿 / 正常金 / 保底红）集中维护：
         XAML 用 DynamicResource 引用，C# 由 RarityPalette 从应用资源里解析。
-        取值是对着游戏内抽卡记录界面的实测色，明暗主题共用同一套，所以不放 ThemeDictionaries。
+        取值对齐游戏内抽卡记录界面与 ActivityPalette 的语义色，明暗主题共用。
     -->
     <SolidColorBrush x:Key="Gacha.Rarity.Kuang" Color="#C0915B" />
     <SolidColorBrush x:Key="Gacha.Rarity.Wei" Color="#9158BF" />
     <SolidColorBrush x:Key="Gacha.Rarity.Pu" Color="#6470C1" />
 
-    <!--  表格行底色：不透明色，半透明会让主题的隔行灰透出来  -->
+    <!--  半透明填充色（0.24~0.28 透明度）：用于 ScaleX 进度底槽、稀有度胶囊底色，明暗主题均不抢前景字  -->
+    <SolidColorBrush x:Key="Gacha.Rarity.Kuang.Fill" Color="#45C0915B" />
+    <SolidColorBrush x:Key="Gacha.Rarity.Wei.Fill" Color="#3D9158BF" />
+    <SolidColorBrush x:Key="Gacha.Rarity.Pu.Fill" Color="#336470C1" />
+
+    <!--  旧版不透明浅色行底令牌（保留兼容）  -->
     <SolidColorBrush x:Key="Gacha.Rarity.Kuang.Tint" Color="#F3D9A6" />
     <SolidColorBrush x:Key="Gacha.Rarity.Wei.Tint" Color="#E4CCF2" />
     <SolidColorBrush x:Key="Gacha.Rarity.Pu.Tint" Color="#EEF0F8" />
 
-    <!--  记录表格表头：深蓝底白字，与行内的浅色稀有度底形成对比  -->
+    <!--  新版表格行底色：仅狂/危行做低透明度柔和高亮，普行透明减噪，彻底解决暗色主题刺眼问题  -->
+    <SolidColorBrush x:Key="Gacha.Rarity.Kuang.RowFill" Color="#26C0915B" />
+    <SolidColorBrush x:Key="Gacha.Rarity.Wei.RowFill" Color="#149158BF" />
+    <SolidColorBrush x:Key="Gacha.Rarity.Pu.RowFill" Color="#00000000" />
+
+    <!--  欧非抽数三色令牌（≤30 抽欧皇绿 / 31~55 抽正常金 / >55 抽软保底红）  -->
+    <SolidColorBrush x:Key="Gacha.Luck.Lucky" Color="#3FA06A" />
+    <SolidColorBrush x:Key="Gacha.Luck.Normal" Color="#C0915B" />
+    <SolidColorBrush x:Key="Gacha.Luck.Hard" Color="#E5484D" />
+
+    <SolidColorBrush x:Key="Gacha.Luck.Lucky.Fill" Color="#473FA06A" />
+    <SolidColorBrush x:Key="Gacha.Luck.Normal.Fill" Color="#47C0915B" />
+    <SolidColorBrush x:Key="Gacha.Luck.Hard.Fill" Color="#47E5484D" />
+
+    <!--  歪 / 大保底状态标签与印章色  -->
+    <SolidColorBrush x:Key="Gacha.Status.OffBanner" Color="#D9E11D48" />
+
+    <!--  软保底标尺刻度线色（明暗主题自适应）  -->
+    <SolidColorBrush x:Key="Gacha.Ruler.Tick" Color="#4D808080" />
+
+    <!--  记录表格表头  -->
     <SolidColorBrush x:Key="Gacha.Table.HeaderBackground" Color="#37415A" />
     <SolidColorBrush x:Key="Gacha.Table.HeaderBorder" Color="#4A5670" />
     <SolidColorBrush x:Key="Gacha.Table.HeaderForeground" Color="#FFFFFF" />
