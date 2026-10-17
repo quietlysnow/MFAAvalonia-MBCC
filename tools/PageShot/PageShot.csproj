@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <!--
+        页面离屏渲染工具（fork 自用，不随发布包分发）。
+
+        用途：把 MFAAvalonia 的页面渲染成 PNG，全程不创建任何系统窗口，
+        所以不会抢前台、不占任务栏、不动鼠标。取代「启动 GUI → 移动窗口 → PrintWindow 截图」那套流程。
+
+        它直接引用 MFAAvalonia.csproj，用的就是真实的页面类 / ViewModel / 资源，
+        数据只读 AppPaths.DataRoot 下的 record/ 与 resource/（见 Program.cs 的 data-root 参数）。
+    -->
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <TargetFramework>net10.0</TargetFramework>
+        <Nullable>enable</Nullable>
+        <LangVersion>latest</LangVersion>
+        <AssemblyName>PageShot</AssemblyName>
+        <RootNamespace>MFAAvalonia.PageShot</RootNamespace>
+        <DebugType>none</DebugType>
+        <DebugSymbols>false</DebugSymbols>
+        <InvariantGlobalization>false</InvariantGlobalization>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <!-- 离屏渲染：Avalonia.Headless 提供无窗口的 TopLevel，Avalonia.Skia 负责真正出图 -->
+        <PackageReference Include="Avalonia.Headless" Version="11.3.12" />
+        <PackageReference Include="Avalonia.Skia" Version="11.3.12" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\MFAAvalonia\MFAAvalonia.csproj" />
+    </ItemGroup>
+</Project>

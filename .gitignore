@@ -31,3 +31,6 @@ build_output.txt
 /MFAAvalonia/AssemblyInfo.cs
 workflows/android/__pycache__/mfa_android_agent.cpython-312.pyc
 publish/
+
+# PageShot 离屏渲染的出图（工具本身要提交，产物不提交）
+tools/PageShot/out/
