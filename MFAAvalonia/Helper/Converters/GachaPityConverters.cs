@@ -1,5 +1,6 @@
 using System;
 using System.Globalization;
+using Avalonia;
 using Avalonia.Data.Converters;
 using Avalonia.Media;
 using Avalonia.Media.Immutable;
@@ -69,4 +70,64 @@ public sealed class PityProgressBrushConverter : IValueConverter
         >= 50 => Warning,
         _ => Safe
     };
+}
+
+/// <summary>
+/// 追踪类型 → 短标签：活动追踪→活动。时间轴筛选胶囊用，选中值仍保留完整类型名。
+/// </summary>
+public sealed class ShortTypeLabelConverter : IValueConverter
+{
+    public static readonly ShortTypeLabelConverter Instance = new();
+
+    public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+        => value is string text && text.EndsWith("追踪", StringComparison.Ordinal)
+            ? text[..^2]
+            : value;
+
+    public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) => null;
+}
+
+/// <summary>
+/// 0~1 的进度 → 92×92 的圆环弧线 Geometry。
+/// Avalonia 的 Arc 形状画实心扇形，套内圆遮罩在部分渲染后端上不显示；
+/// 这里直接给 Path 一段描边圆弧，圆环和轨道用同一个 92×92 坐标系。
+/// </summary>
+public sealed class RatioToArcGeometryConverter : IValueConverter
+{
+    public static readonly RatioToArcGeometryConverter Instance = new();
+
+    private const double Size = 92;
+    private const double Radius = 42;
+
+    public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        var ratio = Math.Clamp(PityToBrushConverter.ToNumber(value), 0, 1);
+        if (ratio <= 0.0001)
+            return new StreamGeometry();
+
+        if (ratio >= 0.9999)
+            return new EllipseGeometry(new Rect(4, 4, Radius * 2, Radius * 2));
+
+        const double center = Size / 2;
+        var startAngle = -Math.PI / 2;
+        var endAngle = startAngle + ratio * Math.PI * 2;
+        var start = new Point(
+            center + Radius * Math.Cos(startAngle),
+            center + Radius * Math.Sin(startAngle));
+        var end = new Point(
+            center + Radius * Math.Cos(endAngle),
+            center + Radius * Math.Sin(endAngle));
+
+        var geometry = new StreamGeometry();
+        using (var context = geometry.Open())
+        {
+            context.BeginFigure(start, false);
+            context.ArcTo(end, new Size(Radius, Radius), 0, ratio > 0.5, SweepDirection.Clockwise);
+            context.EndFigure(false);
+        }
+
+        return geometry;
+    }
+
+    public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) => null;
 }

@@ -39,6 +39,13 @@ public partial class GachaRecordView : UserControl
             Instances.GachaRecordViewModel.FocusTimeline(badge.PoolTypeLabel);
     }
 
+    /// <summary>勋章墙「展开全部 / 收起」：默认只露最近 8 个，卡池卡不被 17 个头像撑高。</summary>
+    private void OnPoolExpandClick(object? sender, RoutedEventArgs e)
+    {
+        if ((sender as Control)?.DataContext is BannerPoolGroup group)
+            group.ToggleExpanded();
+    }
+
     /// <summary>点图鉴墙上的角色卡片：右栏流水定位并搜索该角色出金记录。</summary>
     private void OnCodexFocusClick(object? sender, RoutedEventArgs e)
     {

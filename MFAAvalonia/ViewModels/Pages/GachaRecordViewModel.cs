@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -13,13 +14,14 @@ using Avalonia.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using MFAAvalonia.Helper;
+using MFAAvalonia.Helper.Converters;
 using MFAAvalonia.ViewModels.Other;
 
 namespace MFAAvalonia.ViewModels.Pages;
 
 /// <summary>
-/// 「逮捕档案」抽卡记录仪表盘：读 record/ 下全部 *.jsonl（递归，含子目录），顶部账号档案 + 采集状态，
-/// 中部 4 张 KPI 卡，主体左侧按追踪类型分档的卡池卡片流、右侧逮捕流水时间轴。
+/// 「MBCC 档案中心」抽卡记录仪表盘：读 record/ 下全部 *.jsonl（递归，含子目录），顶部账号档案 + 采集状态，
+/// 中部欧气横幅，主体左侧按追踪类型分档的卡池卡片流、右侧出金记录时间轴。
 ///
 /// 数据脏处理见 AGENTS.md 与记忆：cells 长度 2/3/4 抖动（·拆名、漏名、徽章漏列）、单个 jsonl 内
 /// index 升序 = 游戏列表顺序 = 最新在前、跨文件不是全局时间序、时间戳有三种脏形态。
@@ -135,6 +137,20 @@ public partial class GachaRecordViewModel : ViewModelBase
     [ObservableProperty]
     private string _luckSubtitle = string.Empty;
 
+    /// <summary>欧气横幅左侧的副标题：出金次数 + 卡池数。</summary>
+    [ObservableProperty]
+    private string _heroSubtitle = string.Empty;
+
+    /// <summary>小保底不歪率（0~100）：横幅右侧第三格的大数字。</summary>
+    [ObservableProperty]
+    private double _offBannerRateValue;
+
+    [ObservableProperty]
+    private string _offBannerRateText = "—";
+
+    [ObservableProperty]
+    private string _offBannerDetailText = string.Empty;
+
     /// <summary>KPI 卡右侧的补充信息：卡 1 挂卡池数、卡 2 挂三档占比条、卡 3 挂分档标尺、卡 4 挂可判定次数。</summary>
     [ObservableProperty]
     private string _poolCountText = "—";
@@ -154,9 +170,12 @@ public partial class GachaRecordViewModel : ViewModelBase
     /// <summary>平均出狂在 0~80 硬保底标尺上的位置。</summary>
     public double AvgPityRatio => AvgPityValue <= 0 ? 0 : Math.Clamp(AvgPityValue / 80.0, 0, 1);
 
+    /// <summary>圆环进度：Arc 的 SweepAngle（0~360）。</summary>
+    public double AvgPitySweep => AvgPityRatio * 360;
+
     /// <summary>KPI 卡 2 右侧迷你三档条的段宽（像素）。ColumnDefinition 不在可视树上、拿不到 DataContext，
     /// 所以不用星号权重绑定，直接算好像素宽交给横排 StackPanel。</summary>
-    private const double MiniBarWidth = 72;
+    private const double MiniBarWidth = 160;
     public double KuangBarPixels => KuangRatio * MiniBarWidth;
     public double WeiBarPixels => WeiRatio * MiniBarWidth;
     public double PuBarPixels => Math.Max(0, MiniBarWidth - KuangBarPixels - WeiBarPixels);
@@ -169,6 +188,27 @@ public partial class GachaRecordViewModel : ViewModelBase
 
     // —— 右栏：流水时间轴 ——
     public ObservableCollection<GachaPullItem> Timeline { get; } = [];
+
+    /// <summary>
+    /// 右栏显示用：同一秒、同一池的多条归成一发（十连双金），单条仍是普通行。
+    /// 编号/筛选仍走 Timeline，只在显示层分组。
+    /// </summary>
+    public ObservableCollection<TimelineEntry> TimelineEntries { get; } = [];
+
+    /// <summary>「近 12 次出金」小柱图的数据，按时间正序，最后一根是最新。</summary>
+    public ObservableCollection<PityBar> RecentPityBars { get; } = [];
+
+    [ObservableProperty]
+    private string _lastPullText = "—";
+
+    private static readonly IBrush AgeFresh = new SolidColorBrush(Color.Parse("#3FA06A"));
+    private static readonly IBrush AgeStale = new SolidColorBrush(Color.Parse("#D99A3E"));
+
+    [ObservableProperty]
+    private IBrush _freshnessBrush = AgeFresh;
+
+    [ObservableProperty]
+    private bool _isDataStale;
 
     [ObservableProperty]
     private string _timelineSearch = string.Empty;
@@ -190,11 +230,11 @@ public partial class GachaRecordViewModel : ViewModelBase
     [ObservableProperty]
     private string _selectedTimelineTypeFilter = AllOption;
 
-    // —— 视图分段：仪表盘 / 表格。放顶栏，不占整行（原来是 TabControl 的页签条，白吃 40 DIP 纵向空间）——
-    public string[] Sections { get; } = ["仪表盘", "表格"];
+    // —— 视图分段：总览 / 明细表。放顶栏，不占整行（原来是 TabControl 的页签条，白吃 40 DIP 纵向空间）——
+    public string[] Sections { get; } = ["总览", "明细表"];
 
     [ObservableProperty]
-    private string _selectedSection = "仪表盘";
+    private string _selectedSection = "总览";
 
     public bool IsDashboard => SelectedSection == Sections[0];
     public bool IsTableView => !IsDashboard;
@@ -603,10 +643,21 @@ public partial class GachaRecordViewModel : ViewModelBase
         BuildTable();
         OnPropertyChanged(nameof(CodexHeaderText));
 
+        var latestPull = scope.Select(r => r.Time)
+            .Where(t => t.Length >= 16)
+            .DefaultIfEmpty(string.Empty)
+            .Max(StringComparer.Ordinal)!;
+        LastPullText = latestPull.Length >= 16
+            ? latestPull[5..16]
+            : latestPull.Length >= 10
+                ? latestPull[5..10]
+                : "—";
+
         OnPropertyChanged(nameof(KuangRatio));
         OnPropertyChanged(nameof(WeiRatio));
         OnPropertyChanged(nameof(PuRatio));
         OnPropertyChanged(nameof(AvgPityRatio));
+        OnPropertyChanged(nameof(AvgPitySweep));
         OnPropertyChanged(nameof(KuangBarPixels));
         OnPropertyChanged(nameof(WeiBarPixels));
         OnPropertyChanged(nameof(PuBarPixels));
@@ -714,6 +765,7 @@ public partial class GachaRecordViewModel : ViewModelBase
         WeiTotal = scope.Count(r => r.Rarity == "危");
         PuTotal = scope.Count(r => r.Rarity == "普");
         PoolCountText = $"{scope.Select(r => r.Pool).Where(p => !string.IsNullOrEmpty(p)).Distinct(StringComparer.Ordinal).Count()} 个卡池";
+        HeroSubtitle = TotalPulls <= 0 ? "还没有可统计的记录" : $"{KuangTotal} 次出金 · {PoolCountText}";
         // 卡片副标题已经把口径写清楚了，胶囊里只放数字
         KuangRateText = TotalPulls <= 0
             ? "—"
@@ -747,10 +799,41 @@ public partial class GachaRecordViewModel : ViewModelBase
         var offBannerCount = smallPityKuang.Count(r => r.IsOffBanner);
         var winCount = smallPityKuang.Count - offBannerCount;
 
+        OffBannerRateValue = smallPityKuang.Count == 0 ? 0 : 100.0 * winCount / smallPityKuang.Count;
+        OffBannerRateText = smallPityKuang.Count == 0 ? "—" : $"{OffBannerRateValue:F0}%";
+        OffBannerDetailText = smallPityKuang.Count == 0
+            ? "还没有可判定的记录"
+            : $"{winCount} 胜 / {offBannerCount} 歪 · {smallPityKuang.Count} 次判定";
+
         LuckSubtitle = smallPityKuang.Count == 0
             ? "还没有可判定的小保底记录"
             : $"小保底不歪率 {100.0 * winCount / smallPityKuang.Count:F0}% · {offBannerCount}/{smallPityKuang.Count} 次歪（剔除大保底）";
         JudgeableText = $"小保底 {smallPityKuang.Count} 次";
+
+        BuildRecentPityBars(scope);
+    }
+
+    /// <summary>近 12 次出金的小柱图：高度按 80 抽归一化，颜色沿用欧非三档。</summary>
+    private void BuildRecentPityBars(List<GachaPullItem> scope)
+    {
+        RecentPityBars.Clear();
+        var recent = scope.Where(r => r.Rarity == "狂")
+            .OrderBy(r => r.Time, StringComparer.Ordinal)
+            .TakeLast(12)
+            .ToList();
+
+        foreach (var row in recent)
+        {
+            var height = Math.Clamp(row.PityCount / (double)KuangHardPity * 46, 3, 46);
+            var brush = PityToBrushConverter.Instance.Convert(
+                row.PityCount, typeof(IBrush), null, CultureInfo.InvariantCulture) as IBrush ?? Brushes.Gray;
+            RecentPityBars.Add(new PityBar
+            {
+                Height = height,
+                Brush = brush,
+                TipText = $"{row.Name} · {row.TimelinePityText} · {row.ShortTime}",
+            });
+        }
     }
 
     private void RebuildTimeline()
@@ -776,10 +859,54 @@ public partial class GachaRecordViewModel : ViewModelBase
         var shown = query.ToList();
 
         Timeline.Clear();
+        TimelineEntries.Clear();
         foreach (var row in shown)
+        {
+            row.ShowTimelineMeta = true;
             Timeline.Add(row);
+        }
+
+        // 同秒 + 同追踪类型 + 同卡池 = 同一发（十连共享时间戳）。
+        // 连续分组，保持时间倒序；组内仍是采集顺序。
+        var group = new List<GachaPullItem>();
+        foreach (var row in shown)
+        {
+            if (group.Count == 0
+                || (row.Time == group[0].Time
+                    && row.PoolType == group[0].PoolType
+                    && row.Pool == group[0].Pool))
+            {
+                group.Add(row);
+                continue;
+            }
+
+            AddEntry(group);
+            group = [row];
+        }
+
+        if (group.Count > 0)
+            AddEntry(group);
 
         TimelineCountText = $"{shown.Count} 条";
+
+        void AddEntry(List<GachaPullItem> rows)
+        {
+            if (rows.Count == 0)
+                return;
+
+            var isBatch = rows.Count > 1;
+            if (isBatch)
+                foreach (var row in rows)
+                    row.ShowTimelineMeta = false;
+
+            TimelineEntries.Add(new TimelineEntry
+            {
+                IsBatch = isBatch,
+                BatchLabel = isBatch ? (rows.Count == 2 ? "十连双金" : $"同批 {rows.Count} 金") : string.Empty,
+                HeaderText = isBatch ? $"{rows[0].ShortTime} · {rows[0].Pool}" : string.Empty,
+                Items = rows,
+            });
+        }
     }
 
     // ——————————————————————————————————————————————————————————————
@@ -975,6 +1102,8 @@ public partial class GachaRecordViewModel : ViewModelBase
         if (_newestWriteUtc is not { } writeTime)
         {
             DataAgeText = "暂无采集数据";
+            IsDataStale = true;
+            FreshnessBrush = AgeStale;
             return;
         }
 
@@ -986,6 +1115,8 @@ public partial class GachaRecordViewModel : ViewModelBase
             { TotalDays: < 1 } => $"{(int)span.TotalHours} 小时前采集",
             _ => $"{(int)span.TotalDays} 天前采集"
         };
+        IsDataStale = span.TotalHours >= 24;
+        FreshnessBrush = IsDataStale ? AgeStale : AgeFresh;
     }
 
     /// <summary>供页面的 DispatcherTimer 调用：只重算「多久前」，不重读文件。</summary>
@@ -1426,8 +1557,10 @@ public sealed class ArchiveProfile
 /// 左栏一张卡池档：一个追踪类型的垫抽水位 + 狂厄勋章墙。
 /// 保底按追踪类型独立（规则 4），所以"当前已垫"和"大保底"都是这个类型自己的。
 /// </summary>
-public sealed class BannerPoolGroup
+public sealed partial class BannerPoolGroup : ObservableObject
 {
+    private const int CollapsedBadgeCount = 8;
+
     public required string PoolName { get; init; }
     public required string PoolSubtitle { get; init; }
     public required int CurrentPity { get; init; }
@@ -1439,6 +1572,47 @@ public sealed class BannerPoolGroup
 
     public required string LatestKuangName { get; init; }
     public required ObservableCollection<SRankBadgeItem> SRankBadges { get; init; }
+
+    /// <summary>勋章墙默认只露最近 8 个，展开后显示全部。</summary>
+    public IEnumerable<SRankBadgeItem> DisplayBadges =>
+        IsExpanded ? SRankBadges : SRankBadges.Take(CollapsedBadgeCount);
+
+    public bool CanExpand => SRankBadges.Count > CollapsedBadgeCount;
+
+    public string ExpandText => IsExpanded ? "收起" : $"展开全部 +{SRankBadges.Count - CollapsedBadgeCount}";
+
+    [ObservableProperty]
+    private bool _isExpanded;
+
+    partial void OnIsExpandedChanged(bool value)
+    {
+        OnPropertyChanged(nameof(DisplayBadges));
+        OnPropertyChanged(nameof(ExpandText));
+    }
+
+    public void ToggleExpanded() => IsExpanded = !IsExpanded;
+
+    public string PityValueText => $"{CurrentPity} / {MaxPity}";
+
+    public string PityHintText => CurrentPity switch
+    {
+        >= 80 => "已达硬保底",
+        >= 50 => $"软保底中 · 距硬保底 {MaxPity - CurrentPity} 抽",
+        _ => $"距软保底 {50 - CurrentPity} 抽"
+    };
+
+    /// <summary>卡池类型图标；FluentIcons 里没有的池型退回 TicketDiagonal。</summary>
+    public FluentIcons.Common.Icon TypeIcon => PoolName switch
+    {
+        "活动追踪" => FluentIcons.Common.Icon.TicketDiagonal,
+        "统合追踪" => FluentIcons.Common.Icon.Layer,
+        "定向追踪" => FluentIcons.Common.Icon.CompassNorthwest,
+        "常驻追踪" => FluentIcons.Common.Icon.Earth,
+        _ => FluentIcons.Common.Icon.TicketDiagonal
+    };
+
+    public IBrush AccentBrush => PoolTypePalette.Brush(PoolName);
+    public IBrush AccentFill => PoolTypePalette.Fill(PoolName);
 
     public string PityText => $"已垫 {CurrentPity} / {MaxPity}";
     public double PityRatio => MaxPity <= 0 ? 0 : Math.Min(1.0, (double)CurrentPity / MaxPity);
@@ -1521,6 +1695,9 @@ public sealed class GachaPullItem
     /// <summary>本次出金是否来自大保底必定命中当期 UP。</summary>
     public bool WasGuaranteed { get; set; }
 
+    /// <summary>流水分组后，同批双金的第二行不再重复显示「类型 · 卡池 · 时间」。</summary>
+    public bool ShowTimelineMeta { get; set; } = true;
+
     public string PoolType => TypeLabel ?? GachaRecordViewModel.UnknownTypeLabel;
 
     /// <summary>表格「卡池」列的类型短签（活动/统合/定向/常驻/限定），与顶栏胶囊、勋章墙同一套短名。</summary>
@@ -1542,6 +1719,12 @@ public sealed class GachaPullItem
     public string PityText => PityIsLowerBound ? $">={PityCount}" : PityCount.ToString();
 
     public string PityBadgeText => PityIsLowerBound ? $"≥{PityCount}抽" : $"{PityCount}抽";
+
+    /// <summary>时间轴上的读法：「第 2 抽」比「2抽」更像一次出货。</summary>
+    public string TimelinePityText => PityIsLowerBound ? $"≥{PityCount} 抽" : $"第 {PityCount} 抽";
+
+    /// <summary>时间轴副标题：类型 · 卡池 · 时间（同批行隐藏，避免整卡重复）。</summary>
+    public string TimelineMetaText => $"{TypeShortLabel} · {Pool} · {ShortTime}";
 
     /// <summary>普/危 行用的低调版本：这里数的是"已经垫了多少抽"，不是"这次出货抽数"，所以写「垫 N」。</summary>
     public string PityDimText => PityIsLowerBound ? $"垫 ≥{PityCount}" : $"垫 {PityCount}";
@@ -1605,6 +1788,59 @@ public sealed class CharacterCodex
     public string TipText => $"{Name} · 共 {Count} 只 · {ShackleText}"
                              + (OffBanner ? " · 出过歪" : string.Empty)
                              + " · 点击在流水中速查";
+}
+
+/// <summary>
+/// 右栏出金流水的一条：单条就是普通行，同秒多条包成「十连双金」卡。
+/// </summary>
+public sealed class TimelineEntry
+{
+    public required bool IsBatch { get; init; }
+    public required string BatchLabel { get; init; }
+    public required string HeaderText { get; init; }
+    public required IReadOnlyList<GachaPullItem> Items { get; init; }
+}
+
+/// <summary>「近 12 次出金」柱状图的一根。</summary>
+public sealed class PityBar
+{
+    public required double Height { get; init; }
+    public required IBrush Brush { get; init; }
+    public required string TipText { get; init; }
+}
+
+/// <summary>追踪类型的图标底色。颜色和 GachaTheme 的稀有度令牌同源，明暗主题共用。</summary>
+internal static class PoolTypePalette
+{
+    private static readonly IBrush Activity = new SolidColorBrush(Color.Parse("#C0915B"));
+    private static readonly IBrush Integrated = new SolidColorBrush(Color.Parse("#6470C1"));
+    private static readonly IBrush Targeted = new SolidColorBrush(Color.Parse("#9158BF"));
+    private static readonly IBrush Resident = new SolidColorBrush(Color.Parse("#3FA06A"));
+    private static readonly IBrush Default = new SolidColorBrush(Color.Parse("#8A8A8A"));
+
+    private static readonly IBrush ActivityFill = new SolidColorBrush(Color.Parse("#C0915B"), 0.14);
+    private static readonly IBrush IntegratedFill = new SolidColorBrush(Color.Parse("#6470C1"), 0.14);
+    private static readonly IBrush TargetedFill = new SolidColorBrush(Color.Parse("#9158BF"), 0.14);
+    private static readonly IBrush ResidentFill = new SolidColorBrush(Color.Parse("#3FA06A"), 0.14);
+    private static readonly IBrush DefaultFill = new SolidColorBrush(Color.Parse("#8A8A8A"), 0.12);
+
+    public static IBrush Brush(string type) => type switch
+    {
+        "活动追踪" => Activity,
+        "统合追踪" => Integrated,
+        "定向追踪" => Targeted,
+        "常驻追踪" => Resident,
+        _ => Default
+    };
+
+    public static IBrush Fill(string type) => type switch
+    {
+        "活动追踪" => ActivityFill,
+        "统合追踪" => IntegratedFill,
+        "定向追踪" => TargetedFill,
+        "常驻追踪" => ResidentFill,
+        _ => DefaultFill
+    };
 }
 
 /// <summary>

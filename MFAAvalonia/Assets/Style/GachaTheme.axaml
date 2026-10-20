@@ -39,6 +39,9 @@
     <!--  歪 / 大保底状态标签与印章色  -->
     <SolidColorBrush x:Key="Gacha.Status.OffBanner" Color="#D9E11D48" />
 
+    <!--  欧气横幅的金色描边：只做一圈很淡的框，不抢卡片内容  -->
+    <SolidColorBrush x:Key="Gacha.Hero.Border" Color="#33C0915B" />
+
     <!--  软保底标尺刻度线色（明暗主题自适应）  -->
     <SolidColorBrush x:Key="Gacha.Ruler.Tick" Color="#4D808080" />
 

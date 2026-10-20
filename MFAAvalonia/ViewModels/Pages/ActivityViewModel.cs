@@ -35,8 +35,18 @@ public partial class ActivityViewModel : ViewModelBase
 
     private string? _collectedAt;
     private int _failed;
+    private string _listSignature = string.Empty;
 
     public ObservableCollection<ActivityRow> Items { get; } = [];
+
+    /// <summary>非「已结束」的活动，按紧急度排序；页面的主列表绑这个，已结束不再插在最上面。</summary>
+    public ObservableCollection<ActivityRow> ActiveItems { get; } = [];
+
+    /// <summary>已结束的活动单独收在底部折叠区，最近的在前。</summary>
+    public ObservableCollection<ActivityRow> EndedItems { get; } = [];
+
+    /// <summary>右栏「结束日程」：未结束的活动按结束时间排，最多 5 条。</summary>
+    public ObservableCollection<ActivityRow> ScheduleItems { get; } = [];
 
     [ObservableProperty]
     private bool _isEmpty;
@@ -49,6 +59,48 @@ public partial class ActivityViewModel : ViewModelBase
 
     [ObservableProperty]
     private string _statusText = string.Empty;
+
+    [ObservableProperty]
+    private int _activeCount;
+
+    [ObservableProperty]
+    private int _upcomingCount;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasAlerts))]
+    private int _alertCount;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasEnded))]
+    private int _endedCount;
+
+    public bool HasEnded => EndedCount > 0;
+
+    public bool HasAlerts => AlertCount > 0;
+
+    [ObservableProperty]
+    private string _nextEndDayText = "—";
+
+    [ObservableProperty]
+    private string _nextEndRelativeText = string.Empty;
+
+    [ObservableProperty]
+    private string _collectedAtText = "—";
+
+    [ObservableProperty]
+    private string _dataAgeText = "暂无数据";
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(AgeBrush))]
+    private bool _isStale;
+
+    [ObservableProperty]
+    private string _staleText = string.Empty;
+
+    /// <summary>数据新鲜度圆点：超过 24 小时转琥珀色，和右上角提醒同一个口径。</summary>
+    public IBrush AgeBrush => IsStale ? ActivityPalette.Stale : ActivityPalette.Fresh;
+
+    public string SourceText => "BWIKI 无期迷途 · 游戏日历";
 
     public ActivityViewModel() => Load();
 
@@ -88,7 +140,13 @@ public partial class ActivityViewModel : ViewModelBase
             // 文件缺失/写坏/读不动一律当空表，状态栏说明，不崩
         }
 
+        // 先按当前时刻算状态，再排序。反过来的话所有行还是默认的 Ongoing，
+        // 已结束的活动会按「结束时间最早」被顶到第一，正好和需求相反。
+        var now = DateTimeOffset.Now;
+        foreach (var row in rows)
+            row.Update(now);
         rows.Sort(ActivityRow.Compare);
+
         Items.Clear();
         foreach (var row in rows)
             Items.Add(row);
@@ -160,42 +218,97 @@ public partial class ActivityViewModel : ViewModelBase
         foreach (var row in Items)
             row.Update(now);
 
-        var active = Items.Count(r => r.State is ActivityState.Imminent or ActivityState.Soon or ActivityState.Ongoing);
-        var endingSoon = Items.Count(r => r.IsAlerting);
+        // 每分钟 Tick 都清空/重填集合会让列表容器重建、滚动位置跳回顶部。
+        // 只有「进行中/已结束」的成员变了才重建；剩余时间本身由 ActivityRow 的属性通知刷新。
+        var signature = string.Join("|", Items.Select(r => $"{r.Name}:{(int)r.State}"));
+        if (signature != _listSignature)
+        {
+            _listSignature = signature;
+            RebuildLists();
+        }
+
+        ActiveCount = Items.Count(r => r.State is ActivityState.Imminent or ActivityState.Soon or ActivityState.Ongoing);
+        UpcomingCount = Items.Count(r => r.State == ActivityState.Upcoming);
+        AlertCount = Items.Count(r => r.IsAlerting);
+        EndedCount = Items.Count(r => r.State == ActivityState.Ended);
+
+        var next = Items.Where(r => r.State != ActivityState.Ended)
+            .OrderBy(r => r.End)
+            .FirstOrDefault();
+        NextEndDayText = next?.EndDayText ?? "—";
+        NextEndRelativeText = next?.RemainingShortText ?? "—";
+
+        var summary = new List<string>();
+        if (ActiveCount > 0)
+            summary.Add($"{ActiveCount} 个进行中");
+        if (UpcomingCount > 0)
+            summary.Add($"{UpcomingCount} 个未开始");
+        if (AlertCount > 0)
+            summary.Add($"{AlertCount} 个 3 天内结束");
+
         SummaryText = Items.Count == 0
             ? string.Empty
-            : active == 0
+            : summary.Count == 0
                 ? "当前没有进行中的活动"
-                : endingSoon > 0
-                    ? $"{active} 个进行中 · {endingSoon} 个 3 天内结束"
-                    : $"{active} 个进行中";
+                : string.Join(" · ", summary);
 
-        StatusText = DescribeStatus(collectedAt, failed, now);
+        UpdateFreshness(collectedAt, now);
+        StatusText = DescribeStatus(failed);
     }
 
-    private string DescribeStatus(string? collectedAt, int failed, DateTimeOffset now)
+    /// <summary>主列表只放未结束的活动；已结束单独进底部折叠区，最近的在前。</summary>
+    private void RebuildLists()
+    {
+        ActiveItems.Clear();
+        foreach (var row in Items.Where(r => r.State != ActivityState.Ended).OrderBy(r => r.End))
+            ActiveItems.Add(row);
+
+        EndedItems.Clear();
+        foreach (var row in Items.Where(r => r.State == ActivityState.Ended).OrderByDescending(r => r.End))
+            EndedItems.Add(row);
+
+        ScheduleItems.Clear();
+        foreach (var row in Items.Where(r => r.State != ActivityState.Ended).OrderBy(r => r.End).Take(5))
+            ScheduleItems.Add(row);
+    }
+
+    private void UpdateFreshness(string? collectedAt, DateTimeOffset now)
+    {
+        if (TryTime(collectedAt, out var at))
+        {
+            CollectedAtText = at.ToString("MM-dd HH:mm", CultureInfo.InvariantCulture);
+            var age = now - at;
+            DataAgeText = age.TotalHours >= 1
+                ? $"{age.TotalHours:F0} 小时前"
+                : $"{Math.Max(1, age.TotalMinutes):F0} 分钟前";
+            IsStale = Items.Count > 0 && age.TotalHours >= 24;
+            StaleText = IsStale
+                ? $"数据已是 {DataAgeText}，可能和游戏内不一致；建议跑一次采集任务，或点「重新读取」。"
+                : $"数据采集于 {CollectedAtText}（{DataAgeText}），来源 BWIKI 无期迷途首页。";
+        }
+        else
+        {
+            CollectedAtText = "—";
+            DataAgeText = "暂无采集时间";
+            IsStale = Items.Count > 0;
+            StaleText = Items.Count > 0
+                ? "这份数据没有采集时间，无法判断新旧；建议重新读取一次。"
+                : string.Empty;
+        }
+    }
+
+    private string DescribeStatus(int failed)
     {
         if (Items.Count == 0)
             return string.Empty;
 
-        var parts = new List<string>();
-        if (TryTime(collectedAt, out var at))
-        {
-            var age = now - at;
-            var ageText = age.TotalHours >= 1
-                ? $"{age.TotalHours:F0} 小时前"
-                : $"{Math.Max(1, age.TotalMinutes):F0} 分钟前";
-            parts.Add($"数据采集于 {at:MM-dd HH:mm}（{ageText}，来源 BWIKI 无期迷途首页）");
-        }
-        else
-        {
-            parts.Add("数据来源 BWIKI 无期迷途首页");
-        }
+        var text = CollectedAtText == "—"
+            ? "数据来源 BWIKI 无期迷途首页"
+            : $"数据采集于 {CollectedAtText}（{DataAgeText}，来源 BWIKI 无期迷途首页）";
 
-        if (failed > 0)
-            parts.Add($"{failed} 个来源本次抓取失败，显示的是上一次的数据");
-
-        return string.Join(" · ", parts);
+        return failed > 0
+            ? $"{text} · {failed} 个来源本次抓取失败，显示的是上一次的数据"
+            : text;
     }
 
     private static string GetString(JsonElement element, string name) =>
@@ -244,6 +357,12 @@ public partial class ActivityRow : ObservableObject
     /// <summary>wiki 只记到日（监察密令就是这种），界面不能把它当成当天 00:00 已结束。</summary>
     public bool DayPrecision { get; private init; }
 
+    public string EndDayText => End.ToString("MM-dd", CultureInfo.InvariantCulture);
+    public string EndWeekdayText => "周" + "日一二三四五六"[(int)End.DayOfWeek];
+    public string EndClockText => DayPrecision ? "全天" : End.ToString("HH:mm", CultureInfo.InvariantCulture);
+    public string EndFootText => $"结束 {FormatTime(End, DayPrecision)}";
+    public bool IsCommand => TypeLabel == "密令";
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsAlerting))]
     private ActivityState _state = ActivityState.Ongoing;
@@ -268,6 +387,28 @@ public partial class ActivityRow : ObservableObject
     /// <summary>进度条填充色：状态色调淡，垫在名字/倒计时下面也不抢前景。</summary>
     [ObservableProperty]
     private IBrush _statusFillBrush = ActivityPalette.FillOf(ActivityState.Ongoing);
+
+    /// <summary>卡片右侧的大号倒计时（"12 天 14 时" / "已结束 1 天"）。</summary>
+    [ObservableProperty]
+    private string _remainingBigText = string.Empty;
+
+    /// <summary>日程卡里的短倒计时（"12 天" / "14 小时"）。</summary>
+    [ObservableProperty]
+    private string _remainingShortText = string.Empty;
+
+    /// <summary>大号数字上方的标签：剩余 / 距开始 / 状态。</summary>
+    [ObservableProperty]
+    private string _remainingLabel = "剩余";
+
+    /// <summary>进度条下方左侧的「已进行 70%」。</summary>
+    [ObservableProperty]
+    private string _progressText = string.Empty;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsActive))]
+    private bool _isEnded;
+
+    public bool IsActive => !IsEnded;
 
     public static ActivityRow? From(JsonElement item)
     {
@@ -302,13 +443,24 @@ public partial class ActivityRow : ObservableObject
             StatusText = "已结束";
             var past = now - end;
             CountdownText = past.TotalHours >= 24 ? $"已结束 {past.TotalDays:F0} 天" : "刚刚结束";
+            RemainingBigText = CountdownText;
+            RemainingShortText = "已结束";
+            RemainingLabel = "状态";
+            ProgressText = "已结束";
+            IsEnded = true;
             ElapsedRatio = 1;
         }
         else if (Start is { } start && now < start)
         {
             State = ActivityState.Upcoming;
             StatusText = "未开始";
-            CountdownText = $"距离开始还有 {FormatSpan(start - now)}";
+            var left = start - now;
+            CountdownText = $"距离开始还有 {FormatSpan(left)}";
+            RemainingBigText = FormatSpanCompact(left);
+            RemainingShortText = FormatSpanShort(left);
+            RemainingLabel = "距开始";
+            ProgressText = "未开始";
+            IsEnded = false;
             ElapsedRatio = 0;
         }
         else
@@ -326,8 +478,13 @@ public partial class ActivityRow : ObservableObject
                 _ => "进行中"
             };
             CountdownText = $"距离活动结束还有 {FormatSpan(left)}";
+            RemainingBigText = FormatSpanCompact(left);
+            RemainingShortText = FormatSpanShort(left);
+            RemainingLabel = "剩余";
             // 进度 = 已经过的时间 / 总时长；开始时间未知就留空槽
             ElapsedRatio = Start is { } s && end > s ? Math.Clamp((now - s) / (end - s), 0, 1) : 0;
+            ProgressText = $"已进行 {ElapsedRatio * 100:F0}%";
+            IsEnded = false;
         }
 
         StatusBrush = ActivityPalette.Of(State);
@@ -368,6 +525,26 @@ public partial class ActivityRow : ObservableObject
         return $"{Math.Max(1, span.Minutes)} 分";
     }
 
+    /// <summary>卡片右侧的大号倒计时：单位用「天/时/分」，比完整句子短，字号能放大。</summary>
+    private static string FormatSpanCompact(TimeSpan span)
+    {
+        if (span.TotalDays >= 1)
+            return $"{(int)span.TotalDays} 天 {span.Hours} 时";
+        if (span.TotalHours >= 1)
+            return $"{(int)span.TotalHours} 时 {span.Minutes} 分";
+        return $"{Math.Max(1, span.Minutes)} 分";
+    }
+
+    /// <summary>右栏日程用的极短倒计时：只给最大单位。</summary>
+    private static string FormatSpanShort(TimeSpan span)
+    {
+        if (span.TotalDays >= 1)
+            return $"{(int)span.TotalDays} 天";
+        if (span.TotalHours >= 1)
+            return $"{(int)span.TotalHours} 小时";
+        return $"{Math.Max(1, span.Minutes)} 分钟";
+    }
+
     private static string GetString(JsonElement element, string name) =>
         element.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String
             ? value.GetString() ?? string.Empty
@@ -385,6 +562,14 @@ internal static class ActivityPalette
     /// 用户要的是"剩余少于 3 天一律红字"，两者只靠状态文字区分程度。
     /// </summary>
     public static IBrush Alert { get; } = new SolidColorBrush(Color.Parse("#E5484D"));
+
+    /// <summary>数据新鲜度：超过 24 小时用琥珀色，别把「旧数据」画成红色告警。</summary>
+    public static IBrush Stale { get; } = new SolidColorBrush(Color.Parse("#D99A3E"));
+
+    /// <summary>过期提示条的淡琥珀底，别用 SukiPrimaryColor5（那是蓝色系）。</summary>
+    public static IBrush StaleFill { get; } = new SolidColorBrush(Color.Parse("#D99A3E"), 0.12);
+
+    public static IBrush Fresh => Ongoing;
 
     private static readonly IBrush Ongoing = new SolidColorBrush(Color.Parse("#3FA06A"));
     private static readonly IBrush Upcoming = new SolidColorBrush(Color.Parse("#4A90D9"));
