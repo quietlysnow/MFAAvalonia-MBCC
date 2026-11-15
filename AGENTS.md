@@ -12,6 +12,7 @@
 | pipeline 节点、Custom 识别器与动作、模板图、OCR 模型、资源包 | MBCCtools 工作区（`G:/MBCCtools工作区`） |
 | `agent/` 里的联网采集与落档（`record/`） | MBCCtools 工作区 |
 | 任务清单/文案/选项（`interface.json`）、公告 md | MBCCtools 工作区 |
+| 界面要显示的**内容**：公告、更新日志、选项图标、角色头像 | MBCCtools 工作区（资源包下发，本仓库只读） |
 
 判断口径：**碰游戏画面或联网采集 → MBCCtools；碰 Avalonia 控件/页面 → 本工作区。**
 MFAAvalonia 没有"资源侧声明自定义页面"的机制，任何界面都必须硬编码在本仓库（页面注册点见 §3），所以界面需求没有第二个选择。
@@ -19,6 +20,12 @@ MFAAvalonia 没有"资源侧声明自定义页面"的机制，任何界面都必
 两仓库靠**文件契约**连接（§2），不要跨进程直接调用，也不要让本仓库的页面去抓网络。
 
 想"不动 GUI 就发布内容"时走 MBCCtools 的 `resource/Announcement/*.md`：MFAAvalonia 原生展示公告，不需要改 fork。
+
+**归属全表见 MBCCtools `docs/项目内容分类.md`**（2026-10-22 全量核对）。三个容易搞错的点：
+
+- `resource/mfa_layout.json` 是**本仓库生成的布局状态**（`DashboardCardGrid.EnsureResourceLayoutFile` 按 `TaskQueueView.axaml` 的默认栅格重建），MBCCtools 已取消跟踪。不要要求那边提供它，也不要在本仓库另存一份 JSON 默认值 —— XAML 默认栅格是唯一真源。
+- `resource/base/image/头像/`、`resource/Announcement/*.md`、`resource/Release.md`/`Changelog.md` 是资源包内容，**不要搬进本仓库**：本仓库按现有相对路径读（§2），搬进来会让每次补头像/改公告都要重发 GUI。
+- 部署到 MBCCtools 根目录的 `MFAAvalonia.exe`/`libs/`/`runtimes/` 等是本仓库的**构建产物**；放在那边是契约要求（`AppPaths.DataRoot` = exe 目录），不是 MBCCtools 的源码。
 
 ## 2. 数据契约（本仓库只读文件，MBCCtools 写）
 
