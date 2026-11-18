@@ -1,4 +1,4 @@
-﻿using Avalonia;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Notifications;
 using Avalonia.Layout;
@@ -2956,8 +2956,10 @@ public static class VersionChecker
             }
         }
 
-        // 文件名包含 "MFA" 时，额外加最高档分数（100）
-        if (fileName.Contains("MFA"))
+        // 文件名包含 MFA 时，额外加最高档分数（100）
+        // 注意：函数开头已把 fileName 转成小写，这里必须按忽略大小写比较，
+        // 否则含大写的匹配永远不成立（#291：MFA 包名与同 Release 的其他宿主包同分）。
+        if (fileName.Contains("mfa", StringComparison.OrdinalIgnoreCase))
         {
             basePriority += 100;
         }
